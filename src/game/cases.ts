@@ -7,6 +7,35 @@ export const demoCase: CaseDefinition = {
     '灯笼巷小卖部门口的代收架上，一个蓝色快递盒在晚饭前不见了。盒子里是一台给老人买的血压计，价值不高但街坊都很上火。',
   reportText:
     '小卖部老板娘报案：她傍晚临时去后院搬饮料，回来发现代收架最上层的蓝色快递不见了。当时巷口有四个人来回经过，民警老周已经把相关人员请到圆桌。',
+  reporter: {
+    name: '刘婶',
+    identity: '灯笼巷小卖部老板娘，街坊快递临时代收点负责人。',
+    concern: '快递里是吴师傅给老人买的血压计，东西不贵，但如果说不清楚，代收点以后没人敢放东西。',
+    statement:
+      '她说18:58左右快递员把蓝色快递盒放到代收架最上层。她去后院搬两箱饮料，19:18回来时发现盒子不见了，其他快递还在。',
+  },
+  involvedParties: [
+    {
+      characterId: 'lin',
+      relationship: '住在巷尾的年轻人，常从小卖部门口经过，和吴师傅、乔妹都熟。',
+      summonsReason: '有人说他19点后在代收架附近出现过，他本人也承认路过小卖部。',
+    },
+    {
+      characterId: 'qiao',
+      relationship: '隔壁理发店学徒，门店正对巷口，和林越有私下人情往来。',
+      summonsReason: '她19:10左右在理发店门口倒垃圾，可能看见巷尾方向的人影。',
+    },
+    {
+      characterId: 'chen',
+      relationship: '住在小卖部对面的老街坊，傍晚常在门口择菜聊天。',
+      summonsReason: '她主动说看见有人抱着蓝色盒子往巷尾走，是目前最直接的目击者。',
+    },
+    {
+      characterId: 'wu',
+      relationship: '修车铺老板，也是丢失快递的收件人。',
+      summonsReason: '快递写着他的名字，他需要说明暂存快递和19点后的去向。',
+    },
+  ],
   evidence: [
     {
       id: 'parcel-record',

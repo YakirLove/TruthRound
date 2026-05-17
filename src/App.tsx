@@ -3,7 +3,9 @@ import {
   ClipboardCheck,
   FileText,
   Gavel,
+  MapPin,
   MessageSquareText,
+  Users,
   Quote,
   RotateCcw,
   Search,
@@ -198,7 +200,19 @@ function App() {
           <div className="briefing">
             <p className="section-label">街坊报案</p>
             <h2>{demoCase.title}</h2>
-            <p>{demoCase.reportText}</p>
+            <p>{demoCase.incidentSummary}</p>
+            <section className="briefing-card reporter-card">
+              <div className="card-title-row">
+                <Gavel />
+                <div>
+                  <span>报案人</span>
+                  <strong>{demoCase.reporter.name}</strong>
+                </div>
+              </div>
+              <p>{demoCase.reporter.identity}</p>
+              <p>{demoCase.reporter.concern}</p>
+              <blockquote>{demoCase.reporter.statement}</blockquote>
+            </section>
             <div className="police-note">
               <Gavel />
               <span>老周负责传唤、控场、记录；他不会推理，也不会替你找答案。</span>
@@ -208,11 +222,33 @@ function App() {
               开始圆桌盘问
             </button>
           </div>
-          <aside className="case-panel">
-            <p className="section-label">老周开局证据</p>
-            {revealedEvidence.map((evidence) => (
-              <EvidenceRow evidence={evidence} key={evidence.id} />
-            ))}
+          <aside className="case-panel opening-dossier">
+            <section>
+              <div className="dossier-heading">
+                <Users />
+                <div>
+                  <p className="section-label">涉及人员</p>
+                  <h3>老周请到圆桌的人</h3>
+                </div>
+              </div>
+              <div className="party-list">
+                {demoCase.involvedParties.map((party) => (
+                  <InvolvedPartyRow party={party} key={party.characterId} />
+                ))}
+              </div>
+            </section>
+            <section>
+              <div className="dossier-heading">
+                <MapPin />
+                <div>
+                  <p className="section-label">老周开局证据</p>
+                  <h3>已经确认的客观事实</h3>
+                </div>
+              </div>
+              {revealedEvidence.map((evidence) => (
+                <EvidenceRow evidence={evidence} key={evidence.id} />
+              ))}
+            </section>
           </aside>
         </section>
       )}
@@ -473,6 +509,18 @@ function EvidenceRow({ evidence, compact = false }: { evidence: EvidenceDefiniti
         {evidence.content}
       </span>
     </div>
+  )
+}
+
+function InvolvedPartyRow({ party }: { party: { characterId: string; relationship: string; summonsReason: string } }) {
+  const character = demoCase.characters.find((item) => item.id === party.characterId)
+
+  return (
+    <article className="party-row">
+      <strong>{character?.name || party.characterId}</strong>
+      <p>{party.relationship}</p>
+      <span>{party.summonsReason}</span>
+    </article>
   )
 }
 

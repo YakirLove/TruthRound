@@ -110,7 +110,7 @@ button:disabled {
 }
 
 .report-layout {
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
 }
 
 .play-layout {
@@ -132,12 +132,12 @@ button:disabled {
 }
 
 .briefing {
-  min-height: 390px;
+  min-height: 560px;
   padding: 34px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 22px;
 }
 
@@ -151,6 +151,53 @@ button:disabled {
   max-width: 720px;
   margin: 0;
   color: var(--text-muted);
+}
+
+.briefing-card {
+  width: 100%;
+  max-width: 760px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  text-align: left;
+}
+
+.card-title-row,
+.dossier-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-title-row span {
+  display: block;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.card-title-row strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-strong);
+  font-size: 18px;
+}
+
+.reporter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reporter-card blockquote {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-main);
+  line-height: 1.6;
 }
 
 .police-note {
@@ -167,6 +214,56 @@ button:disabled {
 .suspect-rail,
 .assistant-panel {
   padding: 18px;
+}
+
+.opening-dossier {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.dossier-heading {
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.dossier-heading h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 18px;
+}
+
+.party-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.party-row {
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  text-align: left;
+}
+
+.party-row strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 15px;
+}
+
+.party-row p,
+.party-row span {
+  display: block;
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.party-row span {
+  color: var(--text-main);
 }
 
 .evidence-row {

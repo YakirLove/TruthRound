@@ -37,11 +37,26 @@ export interface EvidenceDefinition {
   triggerHint?: string
 }
 
+export interface CaseReporter {
+  name: string
+  identity: string
+  concern: string
+  statement: string
+}
+
+export interface InvolvedPartyBrief {
+  characterId: string
+  relationship: string
+  summonsReason: string
+}
+
 export interface CaseDefinition {
   id: string
   title: string
   incidentSummary: string
   reportText: string
+  reporter: CaseReporter
+  involvedParties: InvolvedPartyBrief[]
   truthTimeline: string[]
   evidence: EvidenceDefinition[]
   characters: CharacterDefinition[]

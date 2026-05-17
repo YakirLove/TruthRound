@@ -84,6 +84,13 @@ describe('AI permission boundaries', () => {
 })
 
 describe('game helpers', () => {
+  it('includes a fuller opening briefing with reporter and involved parties', () => {
+    expect(demoCase.reporter.name).toBe('刘婶')
+    expect(demoCase.reporter.statement).toContain('代收架')
+    expect(demoCase.involvedParties.map((party) => party.characterId)).toEqual(['lin', 'qiao', 'chen', 'wu'])
+    expect(demoCase.involvedParties.every((party) => party.relationship && party.summonsReason)).toBe(true)
+  })
+
   it('scores the final verdict by culprit, accomplice, and innocents', () => {
     const result = scoreVerdict(demoCase, {
       culpritId: 'lin',
