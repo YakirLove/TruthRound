@@ -2,6 +2,32 @@ import { describe, expect, it } from 'vitest'
 import { useGameStore } from './gameStore'
 
 describe('game store AI mode', () => {
+  it('starts at the game home screen', () => {
+    useGameStore.getState().resetGame()
+
+    expect(useGameStore.getState().phase).toBe('home')
+  })
+
+  it('navigates from home to case select and opens the first case report', () => {
+    useGameStore.getState().resetGame()
+
+    useGameStore.getState().goToCaseSelect()
+    expect(useGameStore.getState().phase).toBe('case_select')
+
+    useGameStore.getState().openCase('missing-lantern-parcel')
+    expect(useGameStore.getState().phase).toBe('report')
+    expect(useGameStore.getState().turns).toHaveLength(0)
+  })
+
+  it('keeps locked cases from opening', () => {
+    useGameStore.getState().resetGame()
+    useGameStore.getState().goToCaseSelect()
+
+    useGameStore.getState().openCase('case-2')
+
+    expect(useGameStore.getState().phase).toBe('case_select')
+  })
+
   it('uses real AI requests by default', () => {
     expect(useGameStore.getState().useMockAI).toBe(false)
   })

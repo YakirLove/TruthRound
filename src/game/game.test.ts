@@ -91,6 +91,14 @@ describe('game helpers', () => {
     expect(demoCase.involvedParties.every((party) => party.relationship && party.summonsReason)).toBe(true)
   })
 
+  it('includes visual novel scene and character assets for the first case', () => {
+    expect(demoCase.sceneAssets.storefront).toContain('storefront')
+    expect(demoCase.sceneAssets.roundtable).toContain('roundtable')
+    expect(demoCase.sceneAssets.evidenceBoard).toContain('evidence')
+    expect(demoCase.reporter.portrait).toContain('liu')
+    expect(demoCase.characters.every((character) => character.portrait && character.avatar)).toBe(true)
+  })
+
   it('scores the final verdict by culprit, accomplice, and innocents', () => {
     const result = scoreVerdict(demoCase, {
       culpritId: 'lin',

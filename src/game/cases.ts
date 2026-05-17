@@ -1,4 +1,13 @@
-import type { CaseDefinition } from './types'
+import type { CaseDefinition, CaseListItem } from './types'
+import chenPortrait from '../assets/cases/missing-lantern-parcel/characters/chen.png'
+import linPortrait from '../assets/cases/missing-lantern-parcel/characters/lin.png'
+import liuPortrait from '../assets/cases/missing-lantern-parcel/characters/liu.png'
+import qiaoPortrait from '../assets/cases/missing-lantern-parcel/characters/qiao.png'
+import wuPortrait from '../assets/cases/missing-lantern-parcel/characters/wu.png'
+import zhouPortrait from '../assets/cases/missing-lantern-parcel/characters/zhou.png'
+import evidenceBoardScene from '../assets/cases/missing-lantern-parcel/scenes/evidence-board.png'
+import roundtableScene from '../assets/cases/missing-lantern-parcel/scenes/roundtable-office.png'
+import storefrontScene from '../assets/cases/missing-lantern-parcel/scenes/storefront.png'
 
 export const demoCase: CaseDefinition = {
   id: 'missing-lantern-parcel',
@@ -9,6 +18,7 @@ export const demoCase: CaseDefinition = {
     '小卖部老板娘报案：她傍晚临时去后院搬饮料，回来发现代收架最上层的蓝色快递不见了。当时巷口有四个人来回经过，民警老周已经把相关人员请到圆桌。',
   reporter: {
     name: '刘婶',
+    portrait: liuPortrait,
     identity: '灯笼巷小卖部老板娘，街坊快递临时代收点负责人。',
     concern: '快递里是吴师傅给老人买的血压计，东西不贵，但如果说不清楚，代收点以后没人敢放东西。',
     statement:
@@ -36,6 +46,11 @@ export const demoCase: CaseDefinition = {
       summonsReason: '快递写着他的名字，他需要说明暂存快递和19点后的去向。',
     },
   ],
+  sceneAssets: {
+    storefront: storefrontScene,
+    roundtable: roundtableScene,
+    evidenceBoard: evidenceBoardScene,
+  },
   evidence: [
     {
       id: 'parcel-record',
@@ -102,6 +117,9 @@ export const demoCase: CaseDefinition = {
       id: 'zhou',
       name: '老周',
       roleType: 'police',
+      portrait: zhouPortrait,
+      avatar: zhouPortrait,
+      emotion: 'calm',
       personality: '稳、慢、讲规矩，不参与推理。',
       publicBackground: '老街片区民警，负责传唤、控场、记录口供。',
       privateFacts: [],
@@ -114,6 +132,9 @@ export const demoCase: CaseDefinition = {
       id: 'lin',
       name: '林越',
       roleType: 'culprit',
+      portrait: linPortrait,
+      avatar: linPortrait,
+      emotion: 'defensive',
       personality: '嘴快、爱面子，怕被街坊看不起，遇到追问会急着解释。',
       publicBackground: '住在巷尾的年轻人，常帮邻居跑腿，也常被说手脚不稳当。',
       privateFacts: ['他拿走了蓝色快递盒。', '他把快递藏到了修车铺旧轮胎后面。'],
@@ -127,6 +148,9 @@ export const demoCase: CaseDefinition = {
       id: 'qiao',
       name: '乔妹',
       roleType: 'accomplice',
+      portrait: qiaoPortrait,
+      avatar: qiaoPortrait,
+      emotion: 'evasive',
       personality: '机灵、怕麻烦，习惯把话说得模糊。',
       publicBackground: '理发店学徒，傍晚在门口倒垃圾。',
       privateFacts: ['她看见林越从修车铺方向出来，神色慌张。', '她猜到林越藏了东西，但不想得罪他。'],
@@ -140,6 +164,9 @@ export const demoCase: CaseDefinition = {
       id: 'chen',
       name: '陈阿姨',
       roleType: 'witness',
+      portrait: chenPortrait,
+      avatar: chenPortrait,
+      emotion: 'insistent',
       personality: '热心、碎嘴，记性大体可靠但容易夹杂主观判断。',
       publicBackground: '住小卖部对面，傍晚在门口择菜。',
       privateFacts: ['她看见林越拿着蓝色盒子，但没看清盒子上的收件名。'],
@@ -153,6 +180,9 @@ export const demoCase: CaseDefinition = {
       id: 'wu',
       name: '吴师傅',
       roleType: 'innocent',
+      portrait: wuPortrait,
+      avatar: wuPortrait,
+      emotion: 'anxious',
       personality: '急脾气、爱较真，但人很直。',
       publicBackground: '修车铺老板，丢失快递的收件人。',
       privateFacts: ['他19:00后一直在修车铺里补胎，没有拿走自己的快递。'],
@@ -173,3 +203,47 @@ export const demoCase: CaseDefinition = {
 }
 
 export const playableCharacters = demoCase.characters.filter((character) => character.roleType !== 'police')
+
+export const caseList: CaseListItem[] = [
+  {
+    id: demoCase.id,
+    title: demoCase.title,
+    difficulty: 1,
+    status: 'unlocked',
+    summary: '生活纠纷 / 小额快递失踪 / 预计短局',
+    tags: ['已解锁', '生活纠纷', '短局'],
+    caseDefinition: demoCase,
+  },
+  {
+    id: 'case-2',
+    title: '案件二',
+    difficulty: 2,
+    status: 'locked',
+    summary: '后续开放',
+    tags: ['未解锁'],
+  },
+  {
+    id: 'case-3',
+    title: '案件三',
+    difficulty: 3,
+    status: 'locked',
+    summary: '后续开放',
+    tags: ['未解锁'],
+  },
+  {
+    id: 'case-4',
+    title: '案件四',
+    difficulty: 4,
+    status: 'locked',
+    summary: '后续开放',
+    tags: ['未解锁'],
+  },
+  {
+    id: 'case-5',
+    title: '案件五',
+    difficulty: 5,
+    status: 'locked',
+    summary: '后续开放',
+    tags: ['未解锁'],
+  },
+]

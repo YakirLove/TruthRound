@@ -1,9 +1,9 @@
 import { create } from 'zustand'
-import { demoCase } from '../game/cases'
+import { caseList, demoCase } from '../game/cases'
 import { getEvidenceById, getInitialEvidence, makeTurn, scoreVerdict } from '../game/logic'
 import type { AI2StructuredSummary, ConversationTurn, PlayerVerdict, SummaryType, VerdictScore } from '../game/types'
 
-type GamePhase = 'report' | 'roundtable' | 'verdict' | 'result'
+type GamePhase = 'home' | 'case_select' | 'report' | 'roundtable' | 'verdict' | 'result'
 
 interface GameState {
   phase: GamePhase
@@ -18,6 +18,8 @@ interface GameState {
   verdict?: PlayerVerdict
   result?: VerdictScore
   setPhase: (phase: GamePhase) => void
+  goToCaseSelect: () => void
+  openCase: (caseId: string) => void
   setActiveCharacter: (characterId: string) => void
   startRoundtable: () => void
   addTurn: (turn: ConversationTurn) => void
@@ -38,7 +40,7 @@ const initialOpeningTurns = () => [
 ]
 
 export const useGameStore = create<GameState>((set) => ({
-  phase: 'report',
+  phase: 'home',
   activeCharacterId: 'lin',
   useMockAI: false,
   turns: [],
@@ -48,6 +50,27 @@ export const useGameStore = create<GameState>((set) => ({
   revealedEvidenceIds: getInitialEvidence(demoCase).map((evidence) => evidence.id),
   discoveredEvidenceIds: [],
   setPhase: (phase) => set({ phase }),
+  goToCaseSelect: () => set({ phase: 'case_select' }),
+  openCase: (caseId) => {
+    const selectedCase = caseList.find((item) => item.id === caseId)
+
+    if (!selectedCase || selectedCase.status !== 'unlocked') {
+      return
+    }
+
+    set({
+      phase: 'report',
+      activeCharacterId: 'lin',
+      turns: [],
+      latestSummary: '',
+      latestStructuredSummary: undefined,
+      selectedQuote: undefined,
+      revealedEvidenceIds: getInitialEvidence(demoCase).map((evidence) => evidence.id),
+      discoveredEvidenceIds: [],
+      verdict: undefined,
+      result: undefined,
+    })
+  },
   setActiveCharacter: (activeCharacterId) => set({ activeCharacterId }),
   startRoundtable: () =>
     set({
@@ -106,7 +129,7 @@ export const useGameStore = create<GameState>((set) => ({
     }),
   resetGame: () =>
     set({
-      phase: 'report',
+      phase: 'home',
       activeCharacterId: 'lin',
       useMockAI: false,
       turns: [],

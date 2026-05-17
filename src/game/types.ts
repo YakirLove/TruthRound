@@ -13,6 +13,9 @@ export interface CharacterDefinition {
   id: string
   name: string
   roleType: RoleType
+  portrait: string
+  avatar: string
+  emotion: string
   personality: string
   publicBackground: string
   privateFacts: string[]
@@ -39,6 +42,7 @@ export interface EvidenceDefinition {
 
 export interface CaseReporter {
   name: string
+  portrait: string
   identity: string
   concern: string
   statement: string
@@ -57,6 +61,11 @@ export interface CaseDefinition {
   reportText: string
   reporter: CaseReporter
   involvedParties: InvolvedPartyBrief[]
+  sceneAssets: {
+    storefront: string
+    roundtable: string
+    evidenceBoard: string
+  }
   truthTimeline: string[]
   evidence: EvidenceDefinition[]
   characters: CharacterDefinition[]
@@ -66,6 +75,18 @@ export interface CaseDefinition {
     innocentIds: string[]
     explanation: string
   }
+}
+
+export type CaseListStatus = 'unlocked' | 'locked'
+
+export interface CaseListItem {
+  id: string
+  title: string
+  difficulty: number
+  status: CaseListStatus
+  summary: string
+  tags: string[]
+  caseDefinition?: CaseDefinition
 }
 
 export interface ConversationTurn {
