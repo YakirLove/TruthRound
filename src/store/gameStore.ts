@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { caseList, demoCase } from '../game/cases'
+import { caseList, demoCase, getCaseDefinition, getPlayableCharacters, getPoliceCharacter } from '../game/cases'
 import { getEvidenceById, getInitialEvidence, makeTurn, scoreVerdict } from '../game/logic'
 import type { AI2StructuredSummary, ConversationTurn, PlayerVerdict, SummaryType, VerdictScore } from '../game/types'
 
@@ -7,6 +7,7 @@ type GamePhase = 'home' | 'case_select' | 'report' | 'roundtable' | 'verdict' | 
 
 interface GameState {
   phase: GamePhase
+  currentCaseId: string
   activeCharacterId: string
   useMockAI: boolean
   turns: ConversationTurn[]
@@ -32,16 +33,26 @@ interface GameState {
   resetGame: () => void
 }
 
-const initialOpeningTurns = () => [
-  makeTurn('zhou', '街坊报案已经记录。现在开始圆桌问话，所有人按顺序说清楚。', 'police_control'),
-  ...demoCase.characters
-    .filter((character) => character.roleType !== 'police')
-    .map((character) => makeTurn(character.id, character.openingStatement, 'opening')),
-]
+function getInitialActiveCharacterId(caseId: string) {
+  return getPlayableCharacters(getCaseDefinition(caseId))[0]?.id || ''
+}
+
+const initialOpeningTurns = (caseId: string) => {
+  const caseDefinition = getCaseDefinition(caseId)
+  const policeCharacter = getPoliceCharacter(caseDefinition)
+
+  return [
+    policeCharacter
+      ? makeTurn(policeCharacter.id, policeCharacter.openingStatement, 'police_control')
+      : makeTurn('police', '报案已经记录。现在开始圆桌问话，所有人按顺序说清楚。', 'police_control'),
+    ...getPlayableCharacters(caseDefinition).map((character) => makeTurn(character.id, character.openingStatement, 'opening')),
+  ]
+}
 
 export const useGameStore = create<GameState>((set) => ({
   phase: 'home',
-  activeCharacterId: 'lin',
+  currentCaseId: demoCase.id,
+  activeCharacterId: getInitialActiveCharacterId(demoCase.id),
   useMockAI: false,
   turns: [],
   latestSummary: '',
@@ -54,18 +65,21 @@ export const useGameStore = create<GameState>((set) => ({
   openCase: (caseId) => {
     const selectedCase = caseList.find((item) => item.id === caseId)
 
-    if (!selectedCase || selectedCase.status !== 'unlocked') {
+    if (!selectedCase || selectedCase.status !== 'unlocked' || !selectedCase.caseDefinition) {
       return
     }
 
+    const selectedCaseDefinition = selectedCase.caseDefinition
+
     set({
       phase: 'report',
-      activeCharacterId: 'lin',
+      currentCaseId: selectedCaseDefinition.id,
+      activeCharacterId: getInitialActiveCharacterId(selectedCaseDefinition.id),
       turns: [],
       latestSummary: '',
       latestStructuredSummary: undefined,
       selectedQuote: undefined,
-      revealedEvidenceIds: getInitialEvidence(demoCase).map((evidence) => evidence.id),
+      revealedEvidenceIds: getInitialEvidence(selectedCaseDefinition).map((evidence) => evidence.id),
       discoveredEvidenceIds: [],
       verdict: undefined,
       result: undefined,
@@ -73,16 +87,20 @@ export const useGameStore = create<GameState>((set) => ({
   },
   setActiveCharacter: (activeCharacterId) => set({ activeCharacterId }),
   startRoundtable: () =>
-    set({
+    set((state) => {
+      const caseDefinition = getCaseDefinition(state.currentCaseId)
+
+      return {
       phase: 'roundtable',
-      turns: initialOpeningTurns(),
+      turns: initialOpeningTurns(caseDefinition.id),
       latestSummary: '',
       latestStructuredSummary: undefined,
       selectedQuote: undefined,
-      revealedEvidenceIds: getInitialEvidence(demoCase).map((evidence) => evidence.id),
+      revealedEvidenceIds: getInitialEvidence(caseDefinition).map((evidence) => evidence.id),
       discoveredEvidenceIds: [],
       verdict: undefined,
       result: undefined,
+      }
     }),
   addTurn: (turn) => set((state) => ({ turns: [...state.turns, turn] })),
   selectQuote: (turnId) =>
@@ -100,7 +118,9 @@ export const useGameStore = create<GameState>((set) => ({
         return state
       }
 
-      const evidence = getEvidenceById(demoCase, evidenceId)
+      const caseDefinition = getCaseDefinition(state.currentCaseId)
+      const policeCharacter = getPoliceCharacter(caseDefinition)
+      const evidence = getEvidenceById(caseDefinition, evidenceId)
 
       if (!evidence) {
         return state
@@ -111,7 +131,12 @@ export const useGameStore = create<GameState>((set) => ({
         discoveredEvidenceIds: Array.from(new Set([...state.discoveredEvidenceIds, evidenceId])),
         turns: [
           ...state.turns,
-          makeTurn('zhou', `老周核实结果：${evidence.title}。${evidence.content}`, 'police_control', evidence.id),
+          makeTurn(
+            policeCharacter?.id || 'police',
+            `${policeCharacter?.name || '民警'}核实结果：${evidence.title}。${evidence.content}`,
+            'police_control',
+            evidence.id,
+          ),
         ],
       }
     }),
@@ -122,15 +147,16 @@ export const useGameStore = create<GameState>((set) => ({
       turns: [...state.turns, makeTurn('ai2', summary, 'ai2_summary', summaryType)],
     })),
   submitVerdict: (verdict) =>
-    set({
+    set((state) => ({
       verdict,
-      result: scoreVerdict(demoCase, verdict),
+      result: scoreVerdict(getCaseDefinition(state.currentCaseId), verdict),
       phase: 'result',
-    }),
+    })),
   resetGame: () =>
     set({
       phase: 'home',
-      activeCharacterId: 'lin',
+      currentCaseId: demoCase.id,
+      activeCharacterId: getInitialActiveCharacterId(demoCase.id),
       useMockAI: false,
       turns: [],
       latestSummary: '',

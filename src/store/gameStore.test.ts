@@ -19,6 +19,22 @@ describe('game store AI mode', () => {
     expect(useGameStore.getState().turns).toHaveLength(0)
   })
 
+  it('opens the second case with its own initial evidence', () => {
+    useGameStore.getState().resetGame()
+    useGameStore.getState().goToCaseSelect()
+
+    useGameStore.getState().openCase('wutong-clinic-gold-ring')
+
+    expect(useGameStore.getState().phase).toBe('report')
+    expect(useGameStore.getState().currentCaseId).toBe('wutong-clinic-gold-ring')
+    expect(useGameStore.getState().activeCharacterId).toBe('li')
+    expect(useGameStore.getState().revealedEvidenceIds).toEqual([
+      'li-report',
+      'tray-condition',
+      'granny-initial-statement',
+    ])
+  })
+
   it('keeps locked cases from opening', () => {
     useGameStore.getState().resetGame()
     useGameStore.getState().goToCaseSelect()
@@ -26,6 +42,21 @@ describe('game store AI mode', () => {
     useGameStore.getState().openCase('case-2')
 
     expect(useGameStore.getState().phase).toBe('case_select')
+  })
+
+  it('starts the selected second case roundtable with its own cast', () => {
+    useGameStore.getState().resetGame()
+    useGameStore.getState().openCase('wutong-clinic-gold-ring')
+
+    useGameStore.getState().startRoundtable()
+
+    expect(useGameStore.getState().turns.map((turn) => turn.speakerId)).toEqual([
+      'officer-zhou',
+      'li',
+      'lu',
+      'zhao',
+      'zhou-granny',
+    ])
   })
 
   it('uses real AI requests by default', () => {

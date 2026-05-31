@@ -6,6 +6,7 @@ import {
   Lock,
   MapPin,
   MessageSquareText,
+  CircleMinus,
   Users,
   Quote,
   RotateCcw,
@@ -15,12 +16,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import './App.css'
 import gameCover from './assets/game-cover.png'
 import { requestAI } from './game/aiClient'
-import { caseList, demoCase, playableCharacters } from './game/cases'
+import { caseList, demoCase, getCaseDefinition, getPlayableCharacters, getPoliceCharacter } from './game/cases'
 import {
   formatAI2StructuredSummary,
   getLockedEvidence,
@@ -29,13 +30,29 @@ import {
   parseAI2StructuredSummary,
   parseTriggeredEvidenceIds,
 } from './game/logic'
-import type { AI2StructuredSummary, ConversationTurn, EvidenceDefinition, PlayerVerdict } from './game/types'
+import type {
+  AI2StructuredSummary,
+  CharacterDefinition,
+  ConversationTurn,
+  EvidenceDefinition,
+} from './game/types'
+import {
+  assignVerdictRole,
+  buildPlayerVerdictFromRoles,
+  createInitialVerdictRoles,
+  groupVerdictCharacterIdsByRole,
+  isVerdictComplete,
+  unassignVerdictCharacter,
+  verdictRoleOptions,
+} from './game/verdict'
+import type { VerdictRole } from './game/verdict'
 import { useGameStore } from './store/gameStore'
 import { isInterfaceLoggingEnabled, useInterfaceLogStore } from './store/interfaceLogStore'
 
 function App() {
   const {
     phase,
+    currentCaseId,
     activeCharacterId,
     useMockAI,
     turns,
@@ -61,23 +78,43 @@ function App() {
   } = useGameStore()
   const [question, setQuestion] = useState('')
   const [isThinking, setIsThinking] = useState(false)
-  const [selectedCulprit, setSelectedCulprit] = useState('lin')
-  const [selectedAccomplices, setSelectedAccomplices] = useState<string[]>(['qiao'])
-  const [selectedInnocents, setSelectedInnocents] = useState<string[]>(['chen', 'wu'])
+  const [roundtableQuestionMode, setRoundtableQuestionMode] = useState<'single' | 'all'>('single')
+  const [verdictRoles, setVerdictRoles] = useState(() => createInitialVerdictRoles(demoCase.characters))
+  const [draggingVerdictCharacterId, setDraggingVerdictCharacterId] = useState<string | null>(null)
+  const [draggingVerdictPointer, setDraggingVerdictPointer] = useState<{ x: number; y: number } | null>(null)
   const [isCaseDossierOpen, setIsCaseDossierOpen] = useState(false)
   const [isClueAnalysisOpen, setIsClueAnalysisOpen] = useState(false)
   const [evidenceNotice, setEvidenceNotice] = useState<EvidenceDefinition[] | null>(null)
+  const currentCase = useMemo(() => getCaseDefinition(currentCaseId), [currentCaseId])
+  const playableCharacters = useMemo(() => getPlayableCharacters(currentCase), [currentCase])
+  const policeCharacter = useMemo(() => getPoliceCharacter(currentCase), [currentCase])
   const activeCharacter = playableCharacters.find((character) => character.id === activeCharacterId) || playableCharacters[0]
   const transcriptRef = useRef<HTMLDivElement | null>(null)
 
   const visibleTurns = useMemo(() => turns, [turns])
   const roundtableCharacters = useMemo(
-    () => [demoCase.characters.find((character) => character.id === 'zhou'), ...playableCharacters].filter(Boolean),
-    [],
+    () => [policeCharacter, ...playableCharacters].filter(Boolean),
+    [playableCharacters, policeCharacter],
   )
-  const revealedEvidence = useMemo(() => getRevealedEvidence(demoCase, revealedEvidenceIds), [revealedEvidenceIds])
-  const lockedEvidence = useMemo(() => getLockedEvidence(demoCase, revealedEvidenceIds), [revealedEvidenceIds])
-  const unlockableEvidence = useMemo(() => demoCase.evidence.filter((evidence) => evidence.stage === 'unlockable'), [])
+  const revealedEvidence = useMemo(() => getRevealedEvidence(currentCase, revealedEvidenceIds), [currentCase, revealedEvidenceIds])
+  const lockedEvidence = useMemo(() => getLockedEvidence(currentCase, revealedEvidenceIds), [currentCase, revealedEvidenceIds])
+  const unlockableEvidence = useMemo(() => currentCase.evidence.filter((evidence) => evidence.stage === 'unlockable'), [currentCase])
+  const verdictRoleGroups = useMemo(() => groupVerdictCharacterIdsByRole(verdictRoles), [verdictRoles])
+  const unassignedVerdictCharacters = useMemo(
+    () => playableCharacters.filter((character) => verdictRoles[character.id] === 'unassigned'),
+    [playableCharacters, verdictRoles],
+  )
+  const draggingVerdictCharacter = useMemo(
+    () => playableCharacters.find((character) => character.id === draggingVerdictCharacterId),
+    [draggingVerdictCharacterId, playableCharacters],
+  )
+  const isVerdictReady = useMemo(() => isVerdictComplete(verdictRoles), [verdictRoles])
+  const isQuestioningAll = roundtableQuestionMode === 'all'
+  const questionTargetTitle = isQuestioningAll ? '所有涉事人物' : activeCharacter?.name || '涉事人物'
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 })
+  }, [phase, currentCaseId])
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({
@@ -86,9 +123,50 @@ function App() {
     })
   }, [turns.length])
 
+  useEffect(() => {
+    if (!draggingVerdictCharacterId) {
+      return
+    }
+
+    const draggedCharacterId = draggingVerdictCharacterId
+
+    function moveDrag(event: globalThis.PointerEvent) {
+      setDraggingVerdictPointer({ x: event.clientX, y: event.clientY })
+    }
+
+    function finishDrag(event: globalThis.PointerEvent | MouseEvent) {
+      const dropElement = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-verdict-role]')
+      const role = dropElement?.dataset.verdictRole as VerdictRole | undefined
+
+      if (role) {
+        setVerdictRoles((currentRoles) => assignVerdictRole(currentRoles, draggedCharacterId, role))
+      }
+
+      setDraggingVerdictCharacterId(null)
+      setDraggingVerdictPointer(null)
+    }
+
+    function cancelDrag() {
+      setDraggingVerdictCharacterId(null)
+      setDraggingVerdictPointer(null)
+    }
+
+    window.addEventListener('pointermove', moveDrag)
+    window.addEventListener('pointerup', finishDrag)
+    window.addEventListener('mouseup', finishDrag)
+    window.addEventListener('pointercancel', cancelDrag)
+
+    return () => {
+      window.removeEventListener('pointermove', moveDrag)
+      window.removeEventListener('pointerup', finishDrag)
+      window.removeEventListener('mouseup', finishDrag)
+      window.removeEventListener('pointercancel', cancelDrag)
+    }
+  }, [draggingVerdictCharacterId])
+
   async function askCharacter() {
     const trimmed = question.trim()
-    if (!trimmed || isThinking) {
+    if (!trimmed || isThinking || !activeCharacter) {
       return
     }
 
@@ -102,7 +180,7 @@ function App() {
     const response = await requestAI(
       {
         mode: 'roleplay',
-        caseId: demoCase.id,
+        caseId: currentCase.id,
         characterId: activeCharacterId,
         playerQuestion: trimmed,
         quotedTurn,
@@ -119,40 +197,92 @@ function App() {
     addTurn(answerTurn)
 
     if (!response.error) {
-      const checkResponse = await requestAI(
+      await checkEvidenceAfterQuestion([...turns, playerTurn, answerTurn])
+    }
+    setIsThinking(false)
+  }
+
+  async function askAllCharacters() {
+    const trimmed = question.trim()
+    if (!trimmed || isThinking) {
+      return
+    }
+
+    setIsThinking(true)
+    const quotedTurn = selectedQuote
+    const playerTurn = makeTurn('player', trimmed, 'player_question', 'all', quotedTurn)
+    const successfulAnswerTurns: ConversationTurn[] = []
+
+    addTurn(playerTurn)
+    clearQuote()
+    setQuestion('')
+
+    for (const character of playableCharacters) {
+      const response = await requestAI(
         {
-          mode: 'evidence_check',
-          caseId: demoCase.id,
-          conversationHistory: [...turns, playerTurn, answerTurn],
-          revealedEvidenceIds,
-          discoveredEvidenceIds,
+          mode: 'roleplay',
+          caseId: currentCase.id,
+          characterId: character.id,
+          playerQuestion: trimmed,
+          quotedTurn,
+          conversationHistory: [...turns, playerTurn, ...successfulAnswerTurns],
         },
         useMockAI,
       )
 
-      if (!checkResponse.error) {
-        try {
-          const triggeredEvidenceIds = parseTriggeredEvidenceIds(
-            checkResponse.content,
-            lockedEvidence.map((evidence) => evidence.id),
-          )
-          const newlyDiscoveredEvidence = triggeredEvidenceIds
-            .filter((id) => !discoveredEvidenceIds.includes(id))
-            .map((id) => demoCase.evidence.find((evidence) => evidence.id === id))
-            .filter((evidence): evidence is EvidenceDefinition => Boolean(evidence))
+      const answerTurn = makeTurn(
+        character.id,
+        response.error ? `${response.content}\n\n【接口提示】${response.error}` : response.content,
+        'character_answer',
+      )
+      addTurn(answerTurn)
 
-          discoverEvidence(triggeredEvidenceIds)
-
-          if (newlyDiscoveredEvidence.length > 0) {
-            playEvidenceNoticeSound()
-            setEvidenceNotice(newlyDiscoveredEvidence)
-          }
-        } catch {
-          // Evidence discovery is auxiliary; the interface log keeps the raw response for debugging.
-        }
+      if (!response.error) {
+        successfulAnswerTurns.push(answerTurn)
       }
     }
+
+    if (successfulAnswerTurns.length > 0) {
+      await checkEvidenceAfterQuestion([...turns, playerTurn, ...successfulAnswerTurns])
+    }
     setIsThinking(false)
+  }
+
+  async function checkEvidenceAfterQuestion(conversationHistory: ConversationTurn[]) {
+    const checkResponse = await requestAI(
+      {
+        mode: 'evidence_check',
+        caseId: currentCase.id,
+        conversationHistory,
+        revealedEvidenceIds,
+        discoveredEvidenceIds,
+      },
+      useMockAI,
+    )
+
+    if (checkResponse.error) {
+      return
+    }
+
+    try {
+      const triggeredEvidenceIds = parseTriggeredEvidenceIds(
+        checkResponse.content,
+        lockedEvidence.map((evidence) => evidence.id),
+      )
+      const newlyDiscoveredEvidence = triggeredEvidenceIds
+        .filter((id) => !discoveredEvidenceIds.includes(id))
+        .map((id) => currentCase.evidence.find((evidence) => evidence.id === id))
+        .filter((evidence): evidence is EvidenceDefinition => Boolean(evidence))
+
+      discoverEvidence(triggeredEvidenceIds)
+
+      if (newlyDiscoveredEvidence.length > 0) {
+        playEvidenceNoticeSound()
+        setEvidenceNotice(newlyDiscoveredEvidence)
+      }
+    } catch {
+      // Evidence discovery is auxiliary; the interface log keeps the raw response for debugging.
+    }
   }
 
   async function askAssistant() {
@@ -164,7 +294,7 @@ function App() {
     const response = await requestAI(
       {
         mode: 'assistant_summary',
-        caseId: demoCase.id,
+        caseId: currentCase.id,
         conversationHistory: turns,
         revealedEvidenceIds,
         discoveredEvidenceIds,
@@ -188,21 +318,58 @@ function App() {
     setIsThinking(false)
   }
 
-  function toggleId(list: string[], id: string) {
-    return list.includes(id) ? list.filter((item) => item !== id) : [...list, id]
+  function startVerdictPointerDrag(event: ReactPointerEvent<HTMLElement>, characterId: string) {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('button')) {
+      return
+    }
+
+    event.preventDefault()
+    setDraggingVerdictCharacterId(characterId)
+    setDraggingVerdictPointer({ x: event.clientX, y: event.clientY })
+    event.currentTarget.setPointerCapture(event.pointerId)
   }
 
   function finishVerdict() {
-    const verdict: PlayerVerdict = {
-      culpritId: selectedCulprit,
-      accompliceIds: selectedAccomplices,
-      innocentIds: selectedInnocents,
+    if (!isVerdictReady) {
+      return
     }
-    submitVerdict(verdict)
+
+    submitVerdict(buildPlayerVerdictFromRoles(verdictRoles))
   }
 
+  function openCaseWithInitialVerdict(caseId: string) {
+    setRoundtableQuestionMode('single')
+    setVerdictRoles(createInitialVerdictRoles(getCaseDefinition(caseId).characters))
+    openCase(caseId)
+  }
+
+  function resetGameWithInitialVerdict() {
+    setRoundtableQuestionMode('single')
+    setVerdictRoles(createInitialVerdictRoles(demoCase.characters))
+    resetGame()
+  }
+
+  const appShellClassName =
+    phase === 'roundtable'
+      ? 'app-shell game-shell'
+      : phase === 'case_select'
+        ? 'app-shell case-shell'
+        : phase === 'report'
+          ? 'app-shell report-shell'
+      : phase === 'verdict'
+        ? 'app-shell verdict-shell'
+        : phase === 'result'
+          ? 'app-shell result-shell'
+          : 'app-shell'
+  const appShellStyle =
+    phase === 'verdict'
+      ? ({ '--verdict-bg': `url(${currentCase.sceneAssets.verdictDesk})` } as CSSProperties)
+      : phase === 'result'
+        ? ({ '--result-bg': `url(${currentCase.sceneAssets.verdictResult})` } as CSSProperties)
+        : undefined
+
   return (
-    <main className={phase === 'roundtable' ? 'app-shell game-shell' : 'app-shell'}>
+    <main className={appShellClassName} style={appShellStyle}>
       {phase !== 'home' && phase !== 'roundtable' && (
         <header className="topbar">
           <div>
@@ -210,7 +377,7 @@ function App() {
             <h1>真相圆桌</h1>
           </div>
           <div className="topbar-actions">
-            <button className="ghost-button" type="button" onClick={resetGame}>
+            <button className="ghost-button" type="button" onClick={resetGameWithInitialVerdict}>
               <RotateCcw data-icon="inline-start" />
               重开
             </button>
@@ -220,43 +387,50 @@ function App() {
 
       {phase === 'home' && <HomeScreen onStart={goToCaseSelect} />}
 
-      {phase === 'case_select' && <CaseSelectScreen onOpenCase={openCase} />}
+      {phase === 'case_select' && <CaseSelectScreen onOpenCase={openCaseWithInitialVerdict} />}
 
       {phase === 'report' && (
         <section
           className="report-scene"
-          style={{ '--scene-bg': `url(${demoCase.sceneAssets.storefront})` } as CSSProperties}
+          style={{ '--scene-bg': `url(${currentCase.sceneAssets.storefront})` } as CSSProperties}
         >
           <div className="report-scene-backdrop" />
           <div className="report-stage">
             <section className="case-scroll">
               <p className="scene-kicker">街坊报案</p>
-              <h2>{demoCase.title}</h2>
-              <p className="incident-copy">{demoCase.incidentSummary}</p>
+              <h2>{currentCase.title}</h2>
+              <p className="incident-copy">{currentCase.incidentSummary}</p>
               <div className="reporter-statement">
                 <div className="stamp-label">
                   <Gavel />
-                  <span>报案人 · {demoCase.reporter.name}</span>
+                  <span>报案人 · {currentCase.reporter.name}</span>
                 </div>
-                <p>{demoCase.reporter.identity}</p>
-                <p>{demoCase.reporter.concern}</p>
-                <blockquote>{demoCase.reporter.statement}</blockquote>
+                <p>{currentCase.reporter.identity}</p>
+                <p>{currentCase.reporter.concern}</p>
+                <blockquote>{currentCase.reporter.statement}</blockquote>
               </div>
               <div className="police-note visual-note">
                 <Gavel />
                 <span>老周负责传唤、控场、记录；他不会推理，也不会替你找答案。</span>
               </div>
-              <button className="primary-button start-roundtable-button" type="button" onClick={startRoundtable}>
+              <button
+                className="primary-button start-roundtable-button"
+                type="button"
+                onClick={() => {
+                  setRoundtableQuestionMode('single')
+                  startRoundtable()
+                }}
+              >
                 <MessageSquareText data-icon="inline-start" />
-                开始圆桌盘问
+                开始圆桌问话
               </button>
             </section>
 
-            <aside className="report-character-stage" aria-label={`${demoCase.reporter.name}立绘`}>
-              <img alt={demoCase.reporter.name} className="reporter-portrait" src={demoCase.reporter.portrait} />
+            <aside className="report-character-stage" aria-label={`${currentCase.reporter.name}立绘`}>
+              <img alt={currentCase.reporter.name} className="reporter-portrait" src={currentCase.reporter.portrait} />
               <div className="speaker-nameplate">
-                <span>小卖部老板娘</span>
-                <strong>{demoCase.reporter.name}</strong>
+                <span>报案人</span>
+                <strong>{currentCase.reporter.name}</strong>
               </div>
             </aside>
 
@@ -267,8 +441,8 @@ function App() {
                   <span>老周请到圆桌的人</span>
                 </div>
                 <div className="party-token-list">
-                  {demoCase.involvedParties.map((party) => (
-                    <InvolvedPartyToken party={party} key={party.characterId} />
+                  {currentCase.involvedParties.map((party) => (
+                    <InvolvedPartyToken caseDefinition={currentCase} party={party} key={party.characterId} />
                   ))}
                 </div>
               </div>
@@ -291,13 +465,13 @@ function App() {
       {phase === 'roundtable' && (
         <section
           className="roundtable-scene"
-          style={{ '--roundtable-bg': `url(${demoCase.sceneAssets.roundtable})` } as CSSProperties}
+          style={{ '--roundtable-bg': `url(${currentCase.sceneAssets.roundtable})` } as CSSProperties}
         >
           <div className="roundtable-backdrop" />
           <div className="roundtable-topbar">
             <div>
-              <p className="section-label">圆桌盘问</p>
-              <h2>{demoCase.title}</h2>
+              <p className="section-label">圆桌问话</p>
+              <h2>{currentCase.title}</h2>
             </div>
             <div className="roundtable-actions">
               <button className="ghost-button" type="button" onClick={() => setIsCaseDossierOpen(true)}>
@@ -323,21 +497,38 @@ function App() {
                 }
 
                 const isPolice = character.roleType === 'police'
-                const isActive = character.id === activeCharacterId
+                const isActive = isQuestioningAll ? !isPolice : character.id === activeCharacterId
 
                 return (
-                  <button
-                    className={roundtableCharacterClassName(character.id, isActive, isPolice)}
-                    disabled={isPolice}
-                    key={character.id}
-                    type="button"
-                    onClick={() => setActiveCharacter(character.id)}
-                  >
-                    <img alt={character.name} src={character.portrait} />
-                    <span className="character-nameplate">
-                      <strong>{character.name}</strong>
-                    </span>
-                  </button>
+                  <Fragment key={character.id}>
+                    <button
+                      className={roundtableCharacterClassName(character.id, isActive, isPolice)}
+                      disabled={isPolice}
+                      type="button"
+                      onClick={() => {
+                        setRoundtableQuestionMode('single')
+                        setActiveCharacter(character.id)
+                      }}
+                    >
+                      <img alt={character.name} src={character.portrait} />
+                      <span className="character-nameplate">
+                        <strong>{character.name}</strong>
+                      </span>
+                    </button>
+                    {isPolice && (
+                      <button
+                        className={isQuestioningAll ? 'ask-all-mode-button active' : 'ask-all-mode-button'}
+                        type="button"
+                        onClick={() => setRoundtableQuestionMode('all')}
+                      >
+                        <Users />
+                        <span>
+                          <strong>问所有人</strong>
+                          <small>四人依次回应</small>
+                        </span>
+                      </button>
+                    )}
+                  </Fragment>
                 )
               })}
             </section>
@@ -345,17 +536,17 @@ function App() {
             <section className="dialogue-panel roundtable-dialogue">
               <div className="panel-heading">
                 <div>
-                  <p className="section-label">当前盘问</p>
-                  <h2>{activeCharacter.name}</h2>
+                  <p className="section-label">提问对象</p>
+                  <h2>{questionTargetTitle}</h2>
                 </div>
-                <span className="target-hint">正在盘问：{activeCharacter.name}</span>
+                <span className="target-hint">{isQuestioningAll ? '四人依次回应' : `单独提问：${activeCharacter?.name || '涉事人物'}`}</span>
               </div>
 
               <div className="transcript" aria-live="polite" ref={transcriptRef}>
                 {visibleTurns.map((turn) => (
                   <article className={turnClassName(turn)} key={turn.id}>
                     <div className="turn-header">
-                      <span>{speakerName(turn.speakerId)}</span>
+                      <span>{speakerName(turn.speakerId, currentCase)}</span>
                       {turn.speakerId !== 'ai2' && (
                         <button className="quote-button" type="button" onClick={() => selectQuote(turn.id)}>
                           <Quote />
@@ -363,7 +554,7 @@ function App() {
                         </button>
                       )}
                     </div>
-                    {turn.quotedExcerpt && <QuotePreview quote={turn.quotedExcerpt} />}
+                    {turn.quotedExcerpt && <QuotePreview caseDefinition={currentCase} quote={turn.quotedExcerpt} />}
                     <p>{turn.content}</p>
                   </article>
                 ))}
@@ -373,6 +564,7 @@ function App() {
                 {selectedQuote && (
                   <div className="selected-quote">
                     <QuotePreview
+                      caseDefinition={currentCase}
                       quote={{
                         speakerId: selectedQuote.speakerId,
                         content: selectedQuote.content,
@@ -386,12 +578,21 @@ function App() {
                 <textarea
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
-                  placeholder={`盘问${activeCharacter.name}：你可以自由追问、反问、套话...`}
+                  placeholder={
+                    isQuestioningAll
+                      ? '向所有涉事人物提问：他们会按顺序分别回应...'
+                      : `向${activeCharacter?.name || '涉事人物'}提问：可以追问细节、核对说法或引用发言...`
+                  }
                 />
                 <div className="question-actions">
-                  <button className="primary-button" type="button" disabled={isThinking} onClick={askCharacter}>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={isThinking}
+                    onClick={isQuestioningAll ? askAllCharacters : askCharacter}
+                  >
                     <Send data-icon="inline-start" />
-                    {isThinking ? '思考中' : '追问'}
+                    {isThinking ? '回应中' : '发送提问'}
                   </button>
                 </div>
               </div>
@@ -412,19 +613,19 @@ function App() {
               <section className="drawer-section">
                 <h3>报案人</h3>
                 <p>
-                  <strong>{demoCase.reporter.name}</strong>：{demoCase.reporter.identity}
+                  <strong>{currentCase.reporter.name}</strong>：{currentCase.reporter.identity}
                 </p>
-                <p>{demoCase.reporter.concern}</p>
-                <blockquote>{demoCase.reporter.statement}</blockquote>
+                <p>{currentCase.reporter.concern}</p>
+                <blockquote>{currentCase.reporter.statement}</blockquote>
               </section>
               <section className="drawer-section">
                 <h3>案情简介</h3>
-                <p>{demoCase.incidentSummary}</p>
+                <p>{currentCase.incidentSummary}</p>
               </section>
               <section className="drawer-section">
                 <h3>涉及人员关系</h3>
-                {demoCase.involvedParties.map((party) => {
-                  const character = demoCase.characters.find((item) => item.id === party.characterId)
+                {currentCase.involvedParties.map((party) => {
+                  const character = currentCase.characters.find((item) => item.id === party.characterId)
 
                   return (
                     <article className="dossier-party" key={party.characterId}>
@@ -489,42 +690,107 @@ function App() {
 
       {phase === 'verdict' && (
         <section className="verdict-panel">
-          <p className="section-label">最终裁决</p>
-          <h2>你是唯一判案的人</h2>
-          <VerdictChooser title="主谋" selected={[selectedCulprit]} onToggle={(id) => setSelectedCulprit(id)} />
-          <VerdictChooser
-            title="包庇者"
-            selected={selectedAccomplices}
-            onToggle={(id) => setSelectedAccomplices((current) => toggleId(current, id))}
-          />
-          <VerdictChooser
-            title="无辜者"
-            selected={selectedInnocents}
-            onToggle={(id) => setSelectedInnocents((current) => toggleId(current, id))}
-          />
-          <div className="verdict-actions">
-            <button className="ghost-button" type="button" onClick={() => setPhase('roundtable')}>
+          <div className="verdict-backdrop" />
+          <aside className="verdict-summary">
+            <p className="section-label">最终裁决</p>
+            <h2>案卷裁决台</h2>
+            <p className="verdict-summary-copy">{currentCase.incidentSummary}</p>
+            <div className="verdict-case-file">
+              <span>案件</span>
+              <strong>{currentCase.title}</strong>
+            </div>
+            <div className="verdict-stat-grid">
+              <div>
+                <span>已确认</span>
+                <strong>{revealedEvidence.length}</strong>
+              </div>
+              <div>
+                <span>已发现</span>
+                <strong>{discoveredEvidenceIds.length}</strong>
+              </div>
+            </div>
+            <button className="ghost-button verdict-back-button" type="button" onClick={() => setPhase('roundtable')}>
               返回盘问
             </button>
-            <button className="primary-button" type="button" onClick={finishVerdict}>
-              <Gavel data-icon="inline-start" />
-              提交裁决
-            </button>
-          </div>
+          </aside>
+
+          <section className="verdict-board" aria-label="涉事人物裁决">
+            <div className="verdict-board-heading">
+              <div>
+                <p className="section-label">拖动人物卡定性</p>
+                <h2>把人放进裁决栏</h2>
+              </div>
+              <button
+                className="primary-button verdict-submit-button"
+                disabled={!isVerdictReady}
+                type="button"
+                onClick={finishVerdict}
+              >
+                <Gavel data-icon="inline-start" />
+                提交裁决
+              </button>
+            </div>
+            <div className="verdict-card-tray" aria-label="可拖动人物卡">
+              {unassignedVerdictCharacters.map((character) => (
+                <VerdictCharacterCard
+                  character={character}
+                  key={character.id}
+                  isDragging={draggingVerdictCharacterId === character.id}
+                  onPointerDown={(event) => startVerdictPointerDrag(event, character.id)}
+                  onPointerCancel={() => setDraggingVerdictCharacterId(null)}
+                />
+              ))}
+            </div>
+            <div className="verdict-drop-grid">
+              {verdictRoleOptions.map((option) => (
+                <VerdictDropZone
+                  characterIds={verdictRoleGroups[option.role]}
+                  playableCharacters={playableCharacters}
+                  isDragActive={Boolean(draggingVerdictCharacterId)}
+                  key={option.role}
+                  label={option.label}
+                  onCharacterPointerDown={startVerdictPointerDrag}
+                  onRemoveCharacter={(characterId) =>
+                    setVerdictRoles((currentRoles) => unassignVerdictCharacter(currentRoles, characterId))
+                  }
+                  role={option.role}
+                />
+              ))}
+            </div>
+          </section>
         </section>
+      )}
+
+      {draggingVerdictCharacter && draggingVerdictPointer && (
+        <div
+          className="verdict-drag-ghost"
+          style={
+            {
+              '--drag-x': `${draggingVerdictPointer.x}px`,
+              '--drag-y': `${draggingVerdictPointer.y}px`,
+            } as CSSProperties
+          }
+        >
+          <VerdictCharacterCard character={draggingVerdictCharacter} isGhost />
+        </div>
       )}
 
       {phase === 'result' && result && (
         <section className="result-panel">
-          <p className="section-label">结案反馈</p>
-          <h2>{result.score} 分</h2>
+          <div className="result-panel-heading">
+            <div>
+              <p className="section-label">结案反馈</p>
+              <h2>{result.score} 分</h2>
+            </div>
+            <span>裁决回执</span>
+          </div>
           <div className="score-grid">
             <ScoreItem label="主谋判断" ok={result.correctCulprit} />
             <ScoreItem label="包庇者判断" ok={result.correctAccomplices} />
             <ScoreItem label="无辜者判断" ok={result.correctInnocents} />
           </div>
           <p className="truth-text">{result.explanation}</p>
-          <button className="primary-button" type="button" onClick={resetGame}>
+          <button className="primary-button" type="button" onClick={resetGameWithInitialVerdict}>
             再开一局
           </button>
         </section>
@@ -647,31 +913,99 @@ function CaseSelectScreen({ onOpenCase }: { onOpenCase: (caseId: string) => void
   )
 }
 
-function VerdictChooser({
-  title,
-  selected,
-  onToggle,
+function VerdictCharacterCard({
+  character,
+  isGhost = false,
+  isDragging,
+  isPlaced = false,
+  onRemove,
+  onPointerCancel,
+  onPointerDown,
 }: {
-  title: string
-  selected: string[]
-  onToggle: (id: string) => void
+  character: CharacterDefinition
+  isGhost?: boolean
+  isDragging?: boolean
+  isPlaced?: boolean
+  onRemove?: () => void
+  onPointerCancel?: () => void
+  onPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void
+}) {
+  const className = [
+    'verdict-character-card',
+    isDragging ? 'dragging' : '',
+    isPlaced ? 'placed' : '',
+    isGhost ? 'ghost' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return (
+    <article
+      className={className}
+      draggable={false}
+      onDragStart={(event) => event.preventDefault()}
+      onPointerCancel={onPointerCancel}
+      onPointerDown={onPointerDown}
+    >
+      {isPlaced && onRemove && (
+        <button className="verdict-card-remove" type="button" aria-label={`移回${character.name}`} onClick={onRemove}>
+          <CircleMinus />
+        </button>
+      )}
+      <div className="verdict-person-row">
+        <img alt={character.name} draggable={false} src={character.avatar} />
+        <strong>{character.name}</strong>
+      </div>
+    </article>
+  )
+}
+
+function VerdictDropZone({
+  role,
+  label,
+  characterIds,
+  playableCharacters,
+  isDragActive,
+  onCharacterPointerDown,
+  onRemoveCharacter,
+}: {
+  role: VerdictRole
+  label: string
+  characterIds: string[]
+  playableCharacters: CharacterDefinition[]
+  isDragActive: boolean
+  onCharacterPointerDown: (event: ReactPointerEvent<HTMLElement>, characterId: string) => void
+  onRemoveCharacter: (characterId: string) => void
 }) {
   return (
-    <div className="verdict-group">
-      <h3>{title}</h3>
-      <div className="choice-row">
-        {playableCharacters.map((character) => (
-          <button
-            className={selected.includes(character.id) ? 'choice active' : 'choice'}
-            key={character.id}
-            type="button"
-            onClick={() => onToggle(character.id)}
-          >
-            {character.name}
-          </button>
-        ))}
+    <section
+      className={isDragActive ? `verdict-drop-zone verdict-role-${role} drag-active` : `verdict-drop-zone verdict-role-${role}`}
+      data-verdict-role={role}
+    >
+      <div className="verdict-drop-heading">
+        <strong>{label}</strong>
       </div>
-    </div>
+      <div className="verdict-drop-list">
+        {characterIds.map((characterId) => {
+          const character = playableCharacters.find((item) => item.id === characterId)
+
+          if (!character) {
+            return null
+          }
+
+          return (
+            <VerdictCharacterCard
+              character={character}
+              isDragging={false}
+              isPlaced
+              key={character.id}
+              onPointerDown={(event) => onCharacterPointerDown(event, character.id)}
+              onRemove={() => onRemoveCharacter(character.id)}
+            />
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
@@ -687,8 +1021,14 @@ function EvidenceRow({ evidence, compact = false }: { evidence: EvidenceDefiniti
   )
 }
 
-function InvolvedPartyToken({ party }: { party: { characterId: string; relationship: string; summonsReason: string } }) {
-  const character = demoCase.characters.find((item) => item.id === party.characterId)
+function InvolvedPartyToken({
+  caseDefinition,
+  party,
+}: {
+  caseDefinition: { characters: CharacterDefinition[] }
+  party: { characterId: string; relationship: string; summonsReason: string }
+}) {
+  const character = caseDefinition.characters.find((item) => item.id === party.characterId)
 
   return (
     <article className="party-token" title={`${party.relationship} ${party.summonsReason}`}>
@@ -864,10 +1204,16 @@ function SummaryBlock({ title, items }: { title: string; items: string[] }) {
   )
 }
 
-function QuotePreview({ quote }: { quote: { speakerId: string; content: string } }) {
+function QuotePreview({
+  caseDefinition,
+  quote,
+}: {
+  caseDefinition: { characters: CharacterDefinition[] }
+  quote: { speakerId: string; content: string }
+}) {
   return (
     <blockquote className="quote-preview">
-      <strong>{speakerName(quote.speakerId)}</strong>
+      <strong>{speakerName(quote.speakerId, caseDefinition)}</strong>
       <span>{quote.content.length > 90 ? `${quote.content.slice(0, 90)}...` : quote.content}</span>
     </blockquote>
   )
@@ -875,14 +1221,14 @@ function QuotePreview({ quote }: { quote: { speakerId: string; content: string }
 
 function ScoreItem({ label, ok }: { label: string; ok: boolean }) {
   return (
-    <div className="score-item">
+    <div className={ok ? 'score-item correct' : 'score-item wrong'} data-stamp={ok ? '准' : '偏'}>
       <span>{label}</span>
       <strong>{ok ? '正确' : '偏差'}</strong>
     </div>
   )
 }
 
-function speakerName(id: string) {
+function speakerName(id: string, caseDefinition: { characters: CharacterDefinition[] }) {
   if (id === 'player') {
     return '你'
   }
@@ -890,7 +1236,7 @@ function speakerName(id: string) {
     return '线索研判'
   }
 
-  return demoCase.characters.find((character) => character.id === id)?.name || id
+  return caseDefinition.characters.find((character) => character.id === id)?.name || id
 }
 
 function turnClassName(turn: ConversationTurn) {

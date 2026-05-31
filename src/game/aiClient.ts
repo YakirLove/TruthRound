@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { recordInterfaceLog } from '../store/interfaceLogStore'
-import { demoCase } from './cases'
+import { getCaseDefinition } from './cases'
 import { buildAI1Payload, buildAI2Payload, buildEvidenceCheckPayload, redactSpoilers } from './logic'
 import type { AIRequest, AIResponse } from './types'
 
@@ -32,10 +32,11 @@ export async function requestAI(request: AIRequest, useMock: boolean): Promise<A
     return response
   }
 
+  const caseDefinition = getCaseDefinition(request.caseId)
   const payload =
     request.mode === 'roleplay'
       ? buildAI1Payload({
-          caseDefinition: demoCase,
+          caseDefinition,
           characterId: request.characterId || '',
           playerQuestion: request.playerQuestion || '',
           quotedTurn: request.quotedTurn,
@@ -43,13 +44,13 @@ export async function requestAI(request: AIRequest, useMock: boolean): Promise<A
         })
       : request.mode === 'assistant_summary'
         ? buildAI2Payload({
-            caseDefinition: demoCase,
+            caseDefinition,
             conversationHistory: request.conversationHistory,
             revealedEvidenceIds: request.revealedEvidenceIds,
             discoveredEvidenceIds: request.discoveredEvidenceIds,
           })
         : buildEvidenceCheckPayload({
-            caseDefinition: demoCase,
+            caseDefinition,
             conversationHistory: request.conversationHistory,
             revealedEvidenceIds: request.revealedEvidenceIds,
             discoveredEvidenceIds: request.discoveredEvidenceIds,

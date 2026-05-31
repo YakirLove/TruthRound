@@ -148,12 +148,14 @@ export function buildEvidenceCheckPayload({
   const hiddenEvidence = getLockedEvidence(caseDefinition, revealedEvidenceIds).filter(
     (evidence) => !discoveredEvidenceIds.includes(evidence.id),
   )
+  const latestQuestionIndex = conversationHistory.findLastIndex((turn) => turn.turnType === 'player_question')
+  const recentConversation = latestQuestionIndex >= 0 ? conversationHistory.slice(latestQuestionIndex) : conversationHistory.slice(-4)
 
   return {
     mode: 'evidence_check' as const,
     caseId: caseDefinition.id,
     incidentSummary: caseDefinition.incidentSummary,
-    recentConversation: conversationHistory.slice(-4),
+    recentConversation,
     evidenceSlots: hiddenEvidence.map((evidence, index) => ({
       id: evidence.id,
       vagueLabel: evidence.vagueLabel || `证据${index + 1}`,
@@ -254,7 +256,7 @@ export function scoreVerdict(caseDefinition: CaseDefinition, verdict: PlayerVerd
   const sameSet = (left: string[], right: string[]) =>
     left.length === right.length && left.every((item) => right.includes(item))
 
-  const correctCulprit = verdict.culpritId === expected.culpritId
+  const correctCulprit = sameSet(verdict.culpritIds, [expected.culpritId])
   const correctAccomplices = sameSet(verdict.accompliceIds, expected.accompliceIds)
   const correctInnocents = sameSet(verdict.innocentIds, expected.innocentIds)
   const score = [correctCulprit, correctAccomplices, correctInnocents].filter(Boolean).length * 30 + 10

@@ -65,6 +65,8 @@ export interface CaseDefinition {
     storefront: string
     roundtable: string
     evidenceBoard: string
+    verdictDesk: string
+    verdictResult: string
   }
   truthTimeline: string[]
   evidence: EvidenceDefinition[]
@@ -135,7 +137,7 @@ export interface AIResponse {
 }
 
 export interface PlayerVerdict {
-  culpritId: string
+  culpritIds: string[]
   accompliceIds: string[]
   innocentIds: string[]
 }

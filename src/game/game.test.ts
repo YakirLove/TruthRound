@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { demoCase } from './cases'
+import { demoCase, wutongClinicCase } from './cases'
 import {
   buildAI1Payload,
   buildAI2Payload,
@@ -65,6 +65,21 @@ describe('AI permission boundaries', () => {
     expect(JSON.stringify(payload)).not.toContain('verdict')
   })
 
+  it('builds second case AI1 payload without leaking Xiaolu hidden facts to other characters', () => {
+    const payload = buildAI1Payload({
+      caseDefinition: wutongClinicCase,
+      characterId: 'zhao',
+      playerQuestion: '你看到小卢做了什么？',
+      conversationHistory: [],
+    })
+
+    expect(payload.character.name).toBe('赵晨')
+    expect(payload.visibleFacts.join('\n')).toContain('他争执时经过前台附近')
+    expect(JSON.stringify(payload)).not.toContain('用嘴里的口香糖粘住戒指')
+    expect(JSON.stringify(payload)).not.toContain('把包着戒指的口香糖按在前台柜台底下')
+    expect(JSON.stringify(payload)).not.toContain('verdict')
+  })
+
   it('builds AI2 evidence check payload without exposing evidence content', () => {
     const playerTurn = makeTurn('player', '19:05之后巷尾那边有没有客观记录？', 'player_question', 'lin')
     const answerTurn = makeTurn('lin', '我没去巷尾，我就是路过。', 'character_answer')
@@ -80,6 +95,62 @@ describe('AI permission boundaries', () => {
     expect(JSON.stringify(payload)).toContain('巷尾方向的客观记录')
     expect(JSON.stringify(payload)).not.toContain('19:07的玻璃倒影')
     expect(payload.evidenceSlots.every((slot) => !('content' in slot))).toBe(true)
+  })
+
+  it('builds second case evidence check payload without exposing locked evidence content', () => {
+    const playerTurn = makeTurn('player', '小卢的口香糖后来去哪了？', 'player_question', 'lu')
+    const answerTurn = makeTurn('lu', '我不记得了，可能早就吐掉了。', 'character_answer')
+    const payload = buildEvidenceCheckPayload({
+      caseDefinition: wutongClinicCase,
+      conversationHistory: [playerTurn, answerTurn],
+      revealedEvidenceIds: getInitialEvidence(wutongClinicCase).map((evidence) => evidence.id),
+      discoveredEvidenceIds: [],
+    })
+
+    expect(payload.mode).toBe('evidence_check')
+    expect(JSON.stringify(payload)).toContain('证据一')
+    expect(JSON.stringify(payload)).toContain('前台附近的细小垃圾')
+    expect(JSON.stringify(payload)).not.toContain('没有找到对应的口香糖本体')
+    expect(payload.evidenceSlots.every((slot) => !('content' in slot))).toBe(true)
+  })
+
+  it('builds evidence check payload from the full latest group question round', () => {
+    const oldQuestion = makeTurn('player', '上一轮问题。', 'player_question', 'chen')
+    const oldAnswer = makeTurn('chen', '上一轮回答。', 'character_answer')
+    const playerTurn = makeTurn('player', '19:05之后你们分别在哪里？', 'player_question', 'all')
+    const answerTurns = [
+      makeTurn('lin', '我在巷口。', 'character_answer'),
+      makeTurn('qiao', '我刚好路过。', 'character_answer'),
+      makeTurn('chen', '我在店门口。', 'character_answer'),
+      makeTurn('wu', '我在修车铺。', 'character_answer'),
+    ]
+
+    const payload = buildEvidenceCheckPayload({
+      caseDefinition: demoCase,
+      conversationHistory: [oldQuestion, oldAnswer, playerTurn, ...answerTurns],
+      revealedEvidenceIds: getInitialEvidence(demoCase).map((evidence) => evidence.id),
+      discoveredEvidenceIds: [],
+    })
+
+    expect(payload.recentConversation.map((turn) => turn.speakerId)).toEqual(['player', 'lin', 'qiao', 'chen', 'wu'])
+    expect(payload.recentConversation.map((turn) => turn.content)).not.toContain('上一轮问题。')
+  })
+
+  it('builds evidence check payload from only the latest single-character question round', () => {
+    const oldQuestion = makeTurn('player', '上一轮问题。', 'player_question', 'chen')
+    const oldAnswer = makeTurn('chen', '上一轮回答。', 'character_answer')
+    const playerTurn = makeTurn('player', '你刚才为什么去巷尾？', 'player_question', 'lin')
+    const answerTurn = makeTurn('lin', '我没去巷尾，我只是路过。', 'character_answer')
+
+    const payload = buildEvidenceCheckPayload({
+      caseDefinition: demoCase,
+      conversationHistory: [oldQuestion, oldAnswer, playerTurn, answerTurn],
+      revealedEvidenceIds: getInitialEvidence(demoCase).map((evidence) => evidence.id),
+      discoveredEvidenceIds: [],
+    })
+
+    expect(payload.recentConversation.map((turn) => turn.speakerId)).toEqual(['player', 'lin'])
+    expect(payload.recentConversation.map((turn) => turn.content)).not.toContain('上一轮回答。')
   })
 })
 
@@ -99,9 +170,16 @@ describe('game helpers', () => {
     expect(demoCase.characters.every((character) => character.portrait && character.avatar)).toBe(true)
   })
 
+  it('includes visual novel scene and character assets for the second case', () => {
+    expect(wutongClinicCase.sceneAssets.storefront).toContain('clinic-front')
+    expect(wutongClinicCase.sceneAssets.roundtable).toContain('roundtable')
+    expect(wutongClinicCase.reporter.portrait).toContain('li')
+    expect(wutongClinicCase.characters.every((character) => character.portrait && character.avatar)).toBe(true)
+  })
+
   it('scores the final verdict by culprit, accomplice, and innocents', () => {
     const result = scoreVerdict(demoCase, {
-      culpritId: 'lin',
+      culpritIds: ['lin'],
       accompliceIds: ['qiao'],
       innocentIds: ['chen', 'wu'],
     })
