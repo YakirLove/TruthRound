@@ -1,109 +1,99 @@
 import { invoke } from '@tauri-apps/api/core'
-import { recordInterfaceLog } from '../store/interfaceLogStore'
 import { getCaseDefinition } from './cases'
-import { buildAI1Payload, buildAI2Payload, buildEvidenceCheckPayload, redactSpoilers } from './logic'
+import {
+  buildAI1Payload,
+  buildAI2Payload,
+  buildEvidenceCheckPayload,
+} from './logic'
 import type { AIRequest, AIResponse } from './types'
-
-function isTauriRuntime() {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+export const isTauriRuntime = () =>
+  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+export interface AITransport {
+  request: (request: AIRequest, signal: AbortSignal) => Promise<AIResponse>
 }
-
-export async function requestAI(request: AIRequest, useMock: boolean): Promise<AIResponse> {
-  if (useMock || !isTauriRuntime()) {
-    const startedAt = performance.now()
-    const response = {
-      content: '',
-      model: useMock ? 'mock-disabled' : 'tauri-required',
-      error: useMock
-        ? 'Mock AI 已禁用。请使用 DeepSeek 真实请求。'
-        : '真实 AI 请求需要在 Tauri 桌面端运行，浏览器预览不能直接访问后端命令。',
-    }
-    recordInterfaceLog({
-      interfaceName: useMock ? 'ai.mock.disabled' : 'tauri.runtime.missing',
-      mode: request.mode,
-      provider: useMock ? 'mock' : 'tauri',
-      status: 'error',
-      startedAt,
-      endedAt: performance.now(),
-      request,
-      response,
-      error: response.error,
-    })
-    return response
-  }
-
+export function requestPayload(request: AIRequest) {
   const caseDefinition = getCaseDefinition(request.caseId)
-  const payload =
-    request.mode === 'roleplay'
-      ? buildAI1Payload({
-          caseDefinition,
-          characterId: request.characterId || '',
-          playerQuestion: request.playerQuestion || '',
-          quotedTurn: request.quotedTurn,
-          conversationHistory: request.conversationHistory,
-        })
-      : request.mode === 'assistant_summary'
-        ? buildAI2Payload({
-            caseDefinition,
-            conversationHistory: request.conversationHistory,
-            revealedEvidenceIds: request.revealedEvidenceIds,
-            discoveredEvidenceIds: request.discoveredEvidenceIds,
-          })
-        : buildEvidenceCheckPayload({
-            caseDefinition,
-            conversationHistory: request.conversationHistory,
-            revealedEvidenceIds: request.revealedEvidenceIds,
-            discoveredEvidenceIds: request.discoveredEvidenceIds,
-          })
-
-  const startedAt = performance.now()
-
-  try {
-    const response = await invoke<AIResponse>('ask_deepseek', {
-      request: {
-        mode: request.mode,
-        payload,
-      },
-    })
-    const safeResponse = request.mode === 'assistant_summary' ? { ...response, content: redactSpoilers(response.content) } : response
-
-    recordInterfaceLog({
-      interfaceName: 'tauri.ask_deepseek',
+  const input = { ...request, caseDefinition }
+  return request.mode === 'roleplay'
+    ? buildAI1Payload({
+        ...input,
+        characterId: request.characterId || '',
+        playerQuestion: request.playerQuestion || '',
+      })
+    : request.mode === 'assistant_summary'
+      ? buildAI2Payload(input)
+      : buildEvidenceCheckPayload(input)
+}
+export const aiTransport: AITransport = {
+  request: async (request, signal) => {
+    const command = {
       mode: request.mode,
-      provider: 'deepseek',
-      status: 'success',
-      startedAt,
-      endedAt: performance.now(),
-      request: {
-        mode: request.mode,
-        payload,
-      },
-      response: safeResponse,
-    })
-
-    return safeResponse
-  } catch (error) {
-    const errorResponse = {
-      content: '',
-      model: 'deepseek',
-      error: error instanceof Error ? error.message : String(error),
+      sessionId: request.sessionId,
+      requestId: request.requestId,
+      payload: requestPayload(request),
     }
-
-    recordInterfaceLog({
-      interfaceName: 'tauri.ask_deepseek',
-      mode: request.mode,
-      provider: 'deepseek',
-      status: 'error',
-      startedAt,
-      endedAt: performance.now(),
-      request: {
-        mode: request.mode,
-        payload,
-      },
-      response: errorResponse,
-      error: errorResponse.error,
-    })
-
-    return errorResponse
-  }
+    const controller = new AbortController()
+    const abort = () => {
+      controller.abort()
+      if (isTauriRuntime())
+        void invoke('cancel_ai', { requestId: request.requestId }).catch(
+          () => {},
+        )
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    const timeout = setTimeout(abort, 65000)
+    try {
+      if (signal.aborted) throw new Error('请求已取消，可以重试。')
+      const pending = isTauriRuntime()
+        ? invoke<AIResponse>('ask_deepseek', { request: command })
+        : fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(command),
+            signal: controller.signal,
+          }).then(async (r) => {
+            const v = await r.json()
+            if (!r.ok) throw new Error(v.error || 'AI 连接失败')
+            return v as AIResponse
+          })
+      const response = await Promise.race([
+        pending,
+        new Promise<never>((_, reject) =>
+          controller.signal.addEventListener(
+            'abort',
+            () => reject(new Error('请求已取消或超时，可以重试。')),
+            { once: true },
+          ),
+        ),
+      ])
+      if (response.error || !response.content?.trim())
+        throw new Error(response.error || 'AI 未返回有效内容')
+      return response
+    } catch (e) {
+      throw new Error(
+        controller.signal.aborted
+          ? '请求已取消或超时，可以重试。'
+          : e instanceof TypeError
+            ? '连接中断，请检查网络和本地 AI 服务后重试。问题已保留。'
+            : e instanceof Error
+              ? e.message
+              : String(e),
+        { cause: e },
+      )
+    } finally {
+      clearTimeout(timeout)
+      signal.removeEventListener('abort', abort)
+    }
+  },
+}
+export async function connectionStatus(): Promise<{
+  configured: boolean
+  provider: string
+}> {
+  return isTauriRuntime()
+    ? invoke('ai_status')
+    : fetch('/api/health').then((r) => r.json())
+}
+export async function saveConnection(apiKey: string) {
+  await invoke('save_ai_key', { apiKey })
 }

@@ -10,17 +10,52 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+artifacts/
 .playwright-mcp
+coverage/
+test-results/
+playwright-report/
+.vite/
+*.tsbuildinfo
+/.local/
+/tmp/
+/temp/
+/output/
 *.local
 .env
 .env.*
 !.env.example
+
+# Local credentials, signing files and exported game progress
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sav
+*.save
+/真相圆桌-*.json
+
+# Authoring inputs and machine-specific development records
+/src/game/case-packs/*/materials/
+/docs/DEVELOPMENT_PROGRESS_*.md
+/docs/QA-*.md
+/docs/REFRESH_PLAN.md
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
+._*
 *.suo
 *.ntvs*
 *.njsproj

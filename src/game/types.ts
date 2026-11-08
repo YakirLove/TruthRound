@@ -1,6 +1,15 @@
-export type RoleType = 'culprit' | 'accomplice' | 'witness' | 'innocent' | 'police'
+export type RoleType =
+  | 'culprit'
+  | 'accomplice'
+  | 'witness'
+  | 'innocent'
+  | 'police'
 
-export type SummaryType = 'timeline' | 'contradictions' | 'clue_gaps' | 'unresolved_questions'
+export type SummaryType =
+  | 'timeline'
+  | 'contradictions'
+  | 'clue_gaps'
+  | 'unresolved_questions'
 
 export type TurnType =
   | 'opening'
@@ -38,6 +47,7 @@ export interface EvidenceDefinition {
   vagueLabel?: string
   discoveryLabel?: string
   triggerHint?: string
+  requiresEvidenceIds?: string[]
 }
 
 export interface CaseReporter {
@@ -55,6 +65,11 @@ export interface InvolvedPartyBrief {
 }
 
 export interface CaseDefinition {
+  schemaVersion: 1
+  version: string
+  difficulty: number
+  summary: string
+  tags: string[]
   id: string
   title: string
   incidentSummary: string
@@ -111,6 +126,7 @@ export interface AI2StructuredSummary {
   suspicions: string[]
   clueGaps: string[]
   rawText?: string
+  sources?: Record<string, string[]>
 }
 
 export interface AIRequest {
@@ -123,6 +139,8 @@ export interface AIRequest {
   quotedTurn?: ConversationTurn
   revealedEvidenceIds?: string[]
   discoveredEvidenceIds?: string[]
+  sessionId?: string
+  requestId?: string
 }
 
 export interface AIResponse {
@@ -134,6 +152,64 @@ export interface AIResponse {
     total_tokens?: number
   }
   error?: string
+}
+
+export type CasePackage = CaseDefinition
+export type GamePhase =
+  | 'home'
+  | 'case_select'
+  | 'report'
+  | 'roundtable'
+  | 'verdict'
+  | 'result'
+export interface KnowledgeSource {
+  id: string
+  kind: 'statement' | 'evidence' | 'question'
+  speaker: string
+  content: string
+}
+export interface PlayerKnowledge {
+  caseId: string
+  incidentSummary: string
+  sources: KnowledgeSource[]
+}
+export interface QuestionRound {
+  id: string
+  question: string
+  targetIds: string[]
+  completedIds: string[]
+  failedIds: string[]
+  quote?: ConversationTurn
+  evidenceChecked: boolean
+}
+export interface InvestigationSession {
+  sessionId: string
+  phase: GamePhase
+  currentCaseId: string
+  activeCharacterId: string
+  questionMode: 'single' | 'all'
+  draft: string
+  turns: ConversationTurn[]
+  selectedQuote?: ConversationTurn
+  revealedEvidenceIds: string[]
+  discoveredEvidenceIds: string[]
+  latestSummary: string
+  latestStructuredSummary?: AI2StructuredSummary
+  verdictRoles: Record<
+    string,
+    'culprit' | 'accomplice' | 'innocent' | 'unassigned'
+  >
+  verdict?: PlayerVerdict
+  result?: VerdictScore
+  round?: QuestionRound
+  reportStep: number
+}
+export interface GameSettings {
+  fontSize: number
+  textSpeed: number
+  volume: number
+  muted: boolean
+  reduceMotion: boolean
 }
 
 export interface PlayerVerdict {

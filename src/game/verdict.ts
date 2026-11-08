@@ -43,7 +43,7 @@ export function unassignVerdictCharacter(
 }
 
 export function isVerdictComplete(roles: Record<string, VerdictAssignment>): boolean {
-  return Object.values(roles).some((role) => role !== 'unassigned')
+  return Object.values(roles).length > 0 && Object.values(roles).every((role) => role !== 'unassigned')
 }
 
 export function buildPlayerVerdictFromRoles(roles: Record<string, VerdictAssignment>): PlayerVerdict {

@@ -9,6 +9,7 @@ import type {
   EvidenceDefinition,
   PlayerVerdict,
   VerdictScore,
+  PlayerKnowledge,
 } from './types'
 
 export interface BuildAI1PayloadInput {
@@ -26,8 +27,13 @@ export interface BuildAI2PayloadInput {
   discoveredEvidenceIds?: string[]
 }
 
-export function getCharacter(caseDefinition: CaseDefinition, characterId: string): CharacterDefinition {
-  const character = caseDefinition.characters.find((item) => item.id === characterId)
+export function getCharacter(
+  caseDefinition: CaseDefinition,
+  characterId: string,
+): CharacterDefinition {
+  const character = caseDefinition.characters.find(
+    (item) => item.id === characterId,
+  )
 
   if (!character) {
     throw new Error(`Unknown character: ${characterId}`)
@@ -67,7 +73,9 @@ export function buildAI1Payload({
           content: quotedTurn.content,
         }
       : undefined,
-    conversationHistory: conversationHistory.slice(-16),
+    conversationHistory: conversationHistory
+      .filter((t) => t.turnType !== 'ai2_summary')
+      .slice(-24),
     rules: [
       '你只能以当前角色第一人称回答。',
       '不要主动自爆隐藏事实。',
@@ -77,79 +85,135 @@ export function buildAI1Payload({
   }
 }
 
-export function getInitialEvidence(caseDefinition: CaseDefinition): EvidenceDefinition[] {
-  return caseDefinition.evidence.filter((evidence) => evidence.stage === 'initial')
-}
-
-export function getRevealedEvidence(caseDefinition: CaseDefinition, revealedEvidenceIds: string[]): EvidenceDefinition[] {
-  return caseDefinition.evidence.filter((evidence) => revealedEvidenceIds.includes(evidence.id))
-}
-
-export function getLockedEvidence(caseDefinition: CaseDefinition, revealedEvidenceIds: string[]): EvidenceDefinition[] {
+export function getInitialEvidence(
+  caseDefinition: CaseDefinition,
+): EvidenceDefinition[] {
   return caseDefinition.evidence.filter(
-    (evidence) => evidence.stage === 'unlockable' && !revealedEvidenceIds.includes(evidence.id),
+    (evidence) => evidence.stage === 'initial',
   )
 }
 
-export function getEvidenceById(caseDefinition: CaseDefinition, evidenceId: string): EvidenceDefinition | undefined {
+export function getRevealedEvidence(
+  caseDefinition: CaseDefinition,
+  revealedEvidenceIds: string[],
+): EvidenceDefinition[] {
+  return caseDefinition.evidence.filter((evidence) =>
+    revealedEvidenceIds.includes(evidence.id),
+  )
+}
+
+export function getLockedEvidence(
+  caseDefinition: CaseDefinition,
+  revealedEvidenceIds: string[],
+): EvidenceDefinition[] {
+  return caseDefinition.evidence.filter(
+    (evidence) =>
+      evidence.stage === 'unlockable' &&
+      !revealedEvidenceIds.includes(evidence.id),
+  )
+}
+
+export function getEvidenceById(
+  caseDefinition: CaseDefinition,
+  evidenceId: string,
+): EvidenceDefinition | undefined {
   return caseDefinition.evidence.find((evidence) => evidence.id === evidenceId)
 }
 
-export function buildAI2Payload({
+export function buildPlayerKnowledge({
   caseDefinition,
   conversationHistory,
-  revealedEvidenceIds = getInitialEvidence(caseDefinition).map((evidence) => evidence.id),
-  discoveredEvidenceIds = [],
-}: BuildAI2PayloadInput) {
-  const revealedEvidence = getRevealedEvidence(caseDefinition, revealedEvidenceIds)
-  const availableEvidence = getLockedEvidence(caseDefinition, revealedEvidenceIds).filter((evidence) =>
-    discoveredEvidenceIds.includes(evidence.id),
-  )
-
+  revealedEvidenceIds = [],
+}: BuildAI2PayloadInput): PlayerKnowledge {
   return {
-    mode: 'assistant_summary' as const,
     caseId: caseDefinition.id,
     incidentSummary: caseDefinition.incidentSummary,
-    truthTimeline: caseDefinition.truthTimeline,
-    revealedEvidence,
-    availableEvidence: availableEvidence.map((evidence) => ({
-      id: evidence.id,
-      title: evidence.title,
-      triggerHint: evidence.triggerHint,
-      content: evidence.content,
-    })),
-    characters: caseDefinition.characters,
-    verdict: caseDefinition.verdict,
-    conversationHistory: conversationHistory.slice(-30),
-    outputSchema: {
-      timeline: ['按时间顺序整理已知事件和对应发言来源'],
-      contradictions: ['列出前后不一致、互相冲突、含糊回避的地方'],
-      suspicions: ['列出值得继续盘问的人和追问方向，禁止直接给答案'],
-      clueGaps: ['列出目前还缺少的信息、证据或确认点'],
-    },
-    outputFormat:
-      '只输出严格JSON，不要Markdown，不要代码块。JSON键必须为 timeline, contradictions, suspicions, clueGaps，值必须是字符串数组。',
-    rules: [
-      '禁止直接说出主谋、包庇者、无辜者或最终答案。',
-      '每次必须同时整理时间线、矛盾点、嫌疑点、线索缺口四块。',
-      '只能引用 revealedEvidence 和 availableEvidence 中存在的证据，禁止编造新证据。',
-      '如果玩家下一步适合核实某条 availableEvidence，把证据标题写进嫌疑点或线索缺口，但不要替玩家自动裁决。',
-      '如果输出接近剧透，改写成可追问的问题。',
+    sources: [
+      ...conversationHistory
+        .filter((t) => t.turnType !== 'ai2_summary')
+        .map((t) => ({
+          id: t.id,
+          kind: (t.turnType === 'player_question'
+            ? 'question'
+            : 'statement') as 'question' | 'statement',
+          speaker:
+            caseDefinition.characters.find((c) => c.id === t.speakerId)?.name ||
+            '侦探',
+          content: t.content,
+        })),
+      ...getRevealedEvidence(caseDefinition, revealedEvidenceIds).map((e) => ({
+        id: e.id,
+        kind: 'evidence' as const,
+        speaker: '已核实证据',
+        content: e.title + '：' + e.content,
+      })),
     ],
   }
+}
+export function buildAI2Payload(input: BuildAI2PayloadInput) {
+  const knowledge = buildPlayerKnowledge({
+    ...input,
+    revealedEvidenceIds:
+      input.revealedEvidenceIds ??
+      getInitialEvidence(input.caseDefinition).map((e) => e.id),
+  })
+  return {
+    mode: 'assistant_summary' as const,
+    ...knowledge,
+    outputFormat:
+      '严格 JSON：timeline、contradictions、suspicions、clueGaps 为字符串数组；sources 是对象，键如 timeline:0，值为支撑该条目的来源 id 数组。每条至少引用一个给定 source id。',
+    rules: [
+      '你只能阅读上述玩家已知来源。人物陈述不等于事实；question 只是问题。',
+      '仅 evidence 可称为已核实事实。每个疑点必须写为待确认问题。',
+      '不得判定谁是主谋或包庇者，不得编造未展示事实、作案手法或物品位置。',
+      '资料不足时明确写不足，不推断最终答案。',
+    ],
+  }
+}
+export function canDiscoverEvidence(
+  caseDefinition: CaseDefinition,
+  id: string,
+  revealed: string[],
+  discovered: string[],
+) {
+  const evidence = getEvidenceById(caseDefinition, id)
+  return (
+    !!evidence &&
+    evidence.stage === 'unlockable' &&
+    !revealed.includes(id) &&
+    !discovered.includes(id) &&
+    (evidence.requiresEvidenceIds || []).every((required) =>
+      revealed.includes(required),
+    )
+  )
 }
 
 export function buildEvidenceCheckPayload({
   caseDefinition,
   conversationHistory,
-  revealedEvidenceIds = getInitialEvidence(caseDefinition).map((evidence) => evidence.id),
+  revealedEvidenceIds = getInitialEvidence(caseDefinition).map(
+    (evidence) => evidence.id,
+  ),
   discoveredEvidenceIds = [],
 }: BuildAI2PayloadInput) {
-  const hiddenEvidence = getLockedEvidence(caseDefinition, revealedEvidenceIds).filter(
-    (evidence) => !discoveredEvidenceIds.includes(evidence.id),
+  const hiddenEvidence = getLockedEvidence(
+    caseDefinition,
+    revealedEvidenceIds,
+  ).filter((evidence) =>
+    canDiscoverEvidence(
+      caseDefinition,
+      evidence.id,
+      revealedEvidenceIds,
+      discoveredEvidenceIds,
+    ),
   )
-  const latestQuestionIndex = conversationHistory.findLastIndex((turn) => turn.turnType === 'player_question')
-  const recentConversation = latestQuestionIndex >= 0 ? conversationHistory.slice(latestQuestionIndex) : conversationHistory.slice(-4)
+  const latestQuestionIndex = conversationHistory.findLastIndex(
+    (turn) => turn.turnType === 'player_question',
+  )
+  const recentConversation =
+    latestQuestionIndex >= 0
+      ? conversationHistory.slice(latestQuestionIndex)
+      : conversationHistory.slice(-4)
 
   return {
     mode: 'evidence_check' as const,
@@ -174,19 +238,33 @@ export function buildEvidenceCheckPayload({
   }
 }
 
-function assertStringArray(value: unknown, key: keyof AI2StructuredSummary): string[] {
-  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+function assertStringArray(
+  value: unknown,
+  key: keyof AI2StructuredSummary,
+): string[] {
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === 'string')
+  ) {
     throw new Error(`AI2 summary field ${key} must be a string array`)
   }
 
   return value
 }
 
-export function parseAI2StructuredSummary(content: string): AI2StructuredSummary {
+export function parseAI2StructuredSummary(
+  content: string,
+  allowedSources?: string[],
+): AI2StructuredSummary {
   let parsed: unknown
 
   try {
-    parsed = JSON.parse(content.replace(/^```json\s*/i, '').replace(/```$/i, '').trim())
+    parsed = JSON.parse(
+      content
+        .replace(/^```json\s*/i, '')
+        .replace(/```$/i, '')
+        .trim(),
+    )
   } catch {
     throw new Error('AI2 summary is not valid JSON')
   }
@@ -197,7 +275,32 @@ export function parseAI2StructuredSummary(content: string): AI2StructuredSummary
 
   const record = parsed as Record<string, unknown>
 
+  const sources: Record<string, string[]> = {}
+  if (allowedSources) {
+    const inputSources = record.sources as Record<string, unknown> | undefined
+    for (const section of [
+      'timeline',
+      'contradictions',
+      'suspicions',
+      'clueGaps',
+    ] as const) {
+      assertStringArray(record[section], section).forEach((_, index) => {
+        const key = section + ':' + index
+        const ids = inputSources?.[key]
+        if (
+          !Array.isArray(ids) ||
+          !ids.length ||
+          ids.some(
+            (id) => typeof id !== 'string' || !allowedSources.includes(id),
+          )
+        )
+          throw new Error('研判来源不完整，请重试')
+        sources[key] = [...new Set(ids)]
+      })
+    }
+  }
   return {
+    sources,
     timeline: assertStringArray(record.timeline, 'timeline'),
     contradictions: assertStringArray(record.contradictions, 'contradictions'),
     suspicions: assertStringArray(record.suspicions, 'suspicions'),
@@ -206,11 +309,19 @@ export function parseAI2StructuredSummary(content: string): AI2StructuredSummary
   }
 }
 
-export function parseTriggeredEvidenceIds(content: string, allowedEvidenceIds: string[]): string[] {
+export function parseTriggeredEvidenceIds(
+  content: string,
+  allowedEvidenceIds: string[],
+): string[] {
   let parsed: unknown
 
   try {
-    parsed = JSON.parse(content.replace(/^```json\s*/i, '').replace(/```$/i, '').trim())
+    parsed = JSON.parse(
+      content
+        .replace(/^```json\s*/i, '')
+        .replace(/```$/i, '')
+        .trim(),
+    )
   } catch {
     throw new Error('Evidence check is not valid JSON')
   }
@@ -219,16 +330,28 @@ export function parseTriggeredEvidenceIds(content: string, allowedEvidenceIds: s
     throw new Error('Evidence check is not an object')
   }
 
-  const triggeredEvidenceIds = (parsed as Record<string, unknown>).triggeredEvidenceIds
+  const triggeredEvidenceIds = (parsed as Record<string, unknown>)
+    .triggeredEvidenceIds
 
-  if (!Array.isArray(triggeredEvidenceIds) || !triggeredEvidenceIds.every((item) => typeof item === 'string')) {
-    throw new Error('Evidence check field triggeredEvidenceIds must be a string array')
+  if (
+    !Array.isArray(triggeredEvidenceIds) ||
+    !triggeredEvidenceIds.every((item) => typeof item === 'string')
+  ) {
+    throw new Error(
+      'Evidence check field triggeredEvidenceIds must be a string array',
+    )
   }
 
-  return Array.from(new Set(triggeredEvidenceIds.filter((id) => allowedEvidenceIds.includes(id))))
+  return Array.from(
+    new Set(
+      triggeredEvidenceIds.filter((id) => allowedEvidenceIds.includes(id)),
+    ),
+  )
 }
 
-export function formatAI2StructuredSummary(summary: AI2StructuredSummary): string {
+export function formatAI2StructuredSummary(
+  summary: AI2StructuredSummary,
+): string {
   const formatSection = (title: string, items: string[]) =>
     `【${title}】\n${items.length > 0 ? items.map((item, index) => `${index + 1}. ${item}`).join('\n') : '暂无'}`
 
@@ -241,8 +364,18 @@ export function formatAI2StructuredSummary(summary: AI2StructuredSummary): strin
 }
 
 export function redactSpoilers(content: string): string {
-  const forbidden = ['主谋是', '真凶是', '正确答案', '答案就是', '他在撒谎', '她在撒谎', 'culprit is']
-  const hasSpoiler = forbidden.some((phrase) => content.toLowerCase().includes(phrase.toLowerCase()))
+  const forbidden = [
+    '主谋是',
+    '真凶是',
+    '正确答案',
+    '答案就是',
+    '他在撒谎',
+    '她在撒谎',
+    'culprit is',
+  ]
+  const hasSpoiler = forbidden.some((phrase) =>
+    content.toLowerCase().includes(phrase.toLowerCase()),
+  )
 
   if (!hasSpoiler) {
     return content
@@ -251,15 +384,25 @@ export function redactSpoilers(content: string): string {
   return '有一名关键人物的说法需要重点复核，他的表述存在直接指向答案的风险，已隐藏。请回到时间线和证据缺口继续追问。'
 }
 
-export function scoreVerdict(caseDefinition: CaseDefinition, verdict: PlayerVerdict): VerdictScore {
+export function scoreVerdict(
+  caseDefinition: CaseDefinition,
+  verdict: PlayerVerdict,
+): VerdictScore {
   const expected = caseDefinition.verdict
   const sameSet = (left: string[], right: string[]) =>
     left.length === right.length && left.every((item) => right.includes(item))
 
   const correctCulprit = sameSet(verdict.culpritIds, [expected.culpritId])
-  const correctAccomplices = sameSet(verdict.accompliceIds, expected.accompliceIds)
+  const correctAccomplices = sameSet(
+    verdict.accompliceIds,
+    expected.accompliceIds,
+  )
   const correctInnocents = sameSet(verdict.innocentIds, expected.innocentIds)
-  const score = [correctCulprit, correctAccomplices, correctInnocents].filter(Boolean).length * 30 + 10
+  const score =
+    [correctCulprit, correctAccomplices, correctInnocents].filter(Boolean)
+      .length *
+      30 +
+    10
 
   return {
     score: Math.min(score, 100),
@@ -279,7 +422,9 @@ export function createMockAIResponse(request: AIRequest): AIResponse {
     }
   }
 
-  const character = request.characterId ? getCharacter(demoCase, request.characterId) : demoCase.characters[0]
+  const character = request.characterId
+    ? getCharacter(demoCase, request.characterId)
+    : demoCase.characters[0]
 
   return {
     model: 'mock-roleplay',
@@ -305,8 +450,54 @@ export function makeTurn(
     quotedExcerpt: quotedTurn
       ? {
           speakerId: quotedTurn.speakerId,
-          content: quotedTurn.content.length > 100 ? `${quotedTurn.content.slice(0, 100)}...` : quotedTurn.content,
+          content:
+            quotedTurn.content.length > 100
+              ? `${quotedTurn.content.slice(0, 100)}...`
+              : quotedTurn.content,
         }
       : undefined,
   }
+}
+
+/** AI selects and groups known sources. Its free-form prose never becomes evidence or facts. */
+export function groundStructuredSummary(
+  summary: AI2StructuredSummary,
+  knowledge: PlayerKnowledge,
+): AI2StructuredSummary {
+  const result: AI2StructuredSummary = {
+    timeline: [],
+    contradictions: [],
+    suspicions: [],
+    clueGaps: [],
+    sources: summary.sources,
+  }
+  for (const section of [
+    'timeline',
+    'contradictions',
+    'suspicions',
+    'clueGaps',
+  ] as const) {
+    result[section] = summary[section].map((_, index) => {
+      const ids = summary.sources?.[section + ':' + index] || []
+      const excerpts = ids
+        .map((id) => knowledge.sources.find((source) => source.id === id))
+        .filter((source) => source !== undefined)
+      const text = excerpts
+        .map(
+          (source) =>
+            `${source.kind === 'evidence' ? '已核实记录' : source.kind === 'question' ? '侦探提问' : source.speaker + '的陈述'}：${source.content}`,
+        )
+        .join('\n')
+      const followup =
+        section === 'contradictions'
+          ? '\n待确认：这些记录的时间和行为能否相互印证？'
+          : section === 'suspicions'
+            ? '\n待确认：请当事人补充这段陈述中的具体动作与时间。'
+            : section === 'clueGaps'
+              ? '\n待确认：还需要哪些直接证据来核对这段记录？'
+              : ''
+      return text + followup
+    })
+  }
+  return result
 }

@@ -1,118 +1,162 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::{collections::HashMap, sync::Mutex, time::Duration};
+use tokio::sync::oneshot;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct DeepSeekCommandRequest {
-  mode: String,
-  payload: Value,
+struct AiRequest {
+    mode: String,
+    payload: Value,
+    session_id: String,
+    request_id: String,
 }
-
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AiResponse {
-  content: String,
-  model: String,
-  usage: Option<Value>,
-  error: Option<String>,
+    content: String,
+    model: String,
+    session_id: String,
+    request_id: String,
 }
-
-#[tauri::command]
-async fn ask_deepseek(request: DeepSeekCommandRequest) -> Result<AiResponse, String> {
-  dotenvy::dotenv().ok();
-  dotenvy::from_path("../.env").ok();
-
-  let api_key = std::env::var("DEEPSEEK_API_KEY")
-    .map_err(|_| "缺少 DEEPSEEK_API_KEY。请在项目根目录创建 .env 并填入密钥。".to_string())?;
-
-  let (model, thinking, system_prompt) = match request.mode.as_str() {
-    "roleplay" => (
-      "deepseek-v4-flash",
-      json!({ "type": "disabled" }),
-      "你是《真相圆桌》的AI1角色演绎AI。你只能扮演payload中的当前角色，只能使用payload给你的角色信息、可见事实和私密事实。禁止读取或编造全局真相，禁止主动自爆，禁止替玩家推理。用中文自然回答，控制在120字以内。",
-    ),
-    "assistant_summary" => (
-      "deepseek-v4-pro",
-      json!({ "type": "disabled" }),
-      "你是《真相圆桌》的AI2真相辅助AI。你拥有完整案件资料，但被强制封印答案。禁止直接说出主谋、包庇者、无辜者、谁在撒谎、正确答案。你必须只输出合法 json，不要 Markdown，不要代码块，不要解释文字。json 格式示例：{\"timeline\":[\"按时间顺序整理事件和发言来源\"],\"contradictions\":[\"列出前后不一致或互相冲突之处\"],\"suspicions\":[\"列出值得继续盘问的人和追问方向，但不要给答案\"],\"clueGaps\":[\"列出目前缺少的信息或证据\"]}。四个键 timeline、contradictions、suspicions、clueGaps 必须全部存在，值必须都是字符串数组。",
-    ),
-    "evidence_check" => (
-      "deepseek-v4-flash",
-      json!({ "type": "disabled" }),
-      "你是《真相圆桌》的AI2轻量证据触发检测器。你只判断本轮盘问是否自然触发了某些 evidenceSlots。只要玩家提出核实某个方向、时间段、地点、行动轨迹、物品去向，即使角色否认，也可以触发对应 evidenceSlot。禁止角色扮演，禁止解释，禁止输出证据内容，禁止说出答案。你必须只输出合法 json，不要 Markdown，不要代码块。json 格式必须是：{\"triggeredEvidenceIds\":[]}，数组里只能放 payload.evidenceSlots 中存在的 id。",
-    ),
-    other => return Err(format!("未知 AI 模式：{other}")),
-  };
-
-  let mut body = json!({
-    "model": model,
-    "thinking": thinking,
-    "messages": [
-      { "role": "system", "content": system_prompt },
-      { "role": "user", "content": serde_json::to_string_pretty(&request.payload).unwrap_or_default() }
-    ],
-    "temperature": if request.mode == "roleplay" { 0.86 } else { 0.2 },
-    "max_tokens": match request.mode.as_str() {
-      "roleplay" => 360,
-      "evidence_check" => 220,
-      _ => 1400,
+#[derive(Default)]
+struct Requests(Mutex<HashMap<String, oneshot::Sender<()>>>);
+const SERVICE: &str = "com.truthround.game.deepseek";
+fn api_key() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    if let Ok(bytes) = security_framework::passwords::get_generic_password(SERVICE, "api-key") {
+        if let Ok(key) = String::from_utf8(bytes) {
+            if !key.trim().is_empty() {
+                return Ok(key);
+            }
+        }
     }
-  });
-
-  if request.mode == "assistant_summary" || request.mode == "evidence_check" {
-    body["response_format"] = json!({ "type": "json_object" });
-  }
-
-  let client = reqwest::Client::new();
-  let response = client
-    .post("https://api.deepseek.com/chat/completions")
-    .bearer_auth(api_key)
-    .json(&body)
-    .send()
-    .await
-    .map_err(|error| format!("DeepSeek 请求失败：{error}"))?;
-
-  let status = response.status();
-  let response_json: Value = response
-    .json()
-    .await
-    .map_err(|error| format!("DeepSeek 响应解析失败：{error}"))?;
-
-  if !status.is_success() {
-    return Err(format!("DeepSeek 返回错误 {status}: {response_json}"));
-  }
-
-  let content = response_json["choices"][0]["message"]["content"]
-    .as_str()
-    .unwrap_or("")
-    .trim()
-    .to_string();
-
-  if content.is_empty() {
-    return Err("DeepSeek 返回了空内容。".to_string());
-  }
-
-  Ok(AiResponse {
-    content,
-    model: model.to_string(),
-    usage: response_json.get("usage").cloned(),
-    error: None,
-  })
+    if cfg!(debug_assertions) {
+        dotenvy::from_path(concat!(env!("CARGO_MANIFEST_DIR"), "/../.env")).ok();
+        if let Ok(key) = std::env::var("DEEPSEEK_API_KEY") {
+            if !key.trim().is_empty() {
+                return Ok(key);
+            }
+        }
+    }
+    Err("尚未配置 AI 连接，请在设置中填写 DeepSeek API Key。".into())
 }
-
+#[tauri::command]
+fn ai_status() -> Value {
+    json!({"configured": api_key().is_ok(), "provider": "DeepSeek"})
+}
+#[tauri::command]
+fn save_ai_key(api_key: String) -> Result<(), String> {
+    if api_key.trim().is_empty() || api_key.len() > 512 {
+        return Err("请输入有效的 API Key。".into());
+    }
+    #[cfg(target_os = "macos")]
+    return security_framework::passwords::set_generic_password(
+        SERVICE,
+        "api-key",
+        api_key.trim().as_bytes(),
+    )
+    .map_err(|_| "无法写入系统钥匙串。".into());
+    #[cfg(not(target_os = "macos"))]
+    Err("此开发包仅支持 macOS 钥匙串。".into())
+}
+#[tauri::command]
+fn cancel_ai(request_id: String, requests: tauri::State<'_, Requests>) {
+    if let Ok(mut map) = requests.0.lock() {
+        if let Some(cancel) = map.remove(&request_id) {
+            let _ = cancel.send(());
+        }
+    }
+}
+async fn perform(request: &AiRequest) -> Result<AiResponse, String> {
+    let key = api_key()?;
+    let presets: Value = serde_json::from_str(include_str!("../../shared/ai-presets.json"))
+        .map_err(|_| "AI 配置错误")?;
+    let preset = presets.get(&request.mode).ok_or("未知 AI 请求类型")?;
+    if request.session_id.is_empty()
+        || request.request_id.is_empty()
+        || !request.payload.is_object()
+    {
+        return Err("请求参数错误".into());
+    }
+    let mut body = json!({"model": preset["model"], "temperature": preset["temperature"], "max_tokens": preset["max_tokens"], "thinking": {"type": "disabled"}, "messages": [
+    {"role": "system", "content": preset["system"]}, {"role": "user", "content": request.payload.to_string()}]});
+    if request.mode != "roleplay" {
+        body["response_format"] = json!({"type": "json_object"});
+    }
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|_| "无法初始化 AI 连接")?;
+    let response = client
+        .post("https://api.deepseek.com/chat/completions")
+        .bearer_auth(key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_timeout() {
+                "AI 请求超时，可以重试。"
+            } else {
+                "无法连接 AI，请检查网络后重试。"
+            }
+        })?;
+    if !response.status().is_success() {
+        return Err(if response.status().as_u16() == 401 {
+            "AI 密钥无效，请检查连接设置。".into()
+        } else {
+            format!(
+                "AI 服务暂时不可用（{}），请稍后重试。",
+                response.status().as_u16()
+            )
+        });
+    }
+    let value: Value = response
+        .json()
+        .await
+        .map_err(|_| "AI 响应格式错误，可以重试。")?;
+    let content = value["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("")
+        .trim();
+    if content.is_empty() {
+        return Err("AI 未返回有效内容，可以重试。".into());
+    }
+    Ok(AiResponse {
+        content: content.into(),
+        model: preset["model"].as_str().unwrap_or("deepseek").into(),
+        session_id: request.session_id.clone(),
+        request_id: request.request_id.clone(),
+    })
+}
+#[tauri::command]
+async fn ask_deepseek(
+    request: AiRequest,
+    requests: tauri::State<'_, Requests>,
+) -> Result<AiResponse, String> {
+    let (sender, receiver) = oneshot::channel();
+    requests
+        .0
+        .lock()
+        .map_err(|_| "请求状态不可用")?
+        .insert(request.request_id.clone(), sender);
+    let result = tokio::select! {value = perform(&request) => value, _ = receiver => Err("请求已取消，可以重试。".into())};
+    if let Ok(mut map) = requests.0.lock() {
+        map.remove(&request.request_id);
+    }
+    result
+}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
-    .setup(|app| {
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
-      }
-      Ok(())
-    })
-    .invoke_handler(tauri::generate_handler![ask_deepseek])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    tauri::Builder::default()
+        .manage(Requests::default())
+        .invoke_handler(tauri::generate_handler![
+            ask_deepseek,
+            cancel_ai,
+            ai_status,
+            save_ai_key
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running TruthRound");
 }

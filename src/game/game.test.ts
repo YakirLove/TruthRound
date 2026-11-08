@@ -10,7 +10,6 @@ import {
   makeTurn,
   parseAI2StructuredSummary,
   parseTriggeredEvidenceIds,
-  redactSpoilers,
   scoreVerdict,
 } from './logic'
 
@@ -31,23 +30,14 @@ describe('AI permission boundaries', () => {
     expect(JSON.stringify(payload)).not.toContain('truthTimeline')
   })
 
-  it('builds AI2 payload with full truth but redacts direct-answer output', () => {
-    const payload = buildAI2Payload({
-      caseDefinition: demoCase,
-      conversationHistory: [],
-      revealedEvidenceIds: ['parcel-record'],
-    })
-
-    expect(JSON.stringify(payload)).toContain('把快递藏到了修车铺旧轮胎后面')
-    expect(JSON.stringify(payload)).toContain('revealedEvidence')
-    expect(JSON.stringify(payload)).toContain('availableEvidence')
-    expect(JSON.stringify(payload)).toContain('timeline')
-    expect(JSON.stringify(payload)).toContain('contradictions')
-    expect(JSON.stringify(payload)).toContain('suspicions')
-    expect(JSON.stringify(payload)).toContain('clueGaps')
-    expect(redactSpoilers('主谋是林越，他在撒谎，正确答案就是他。')).toBe(
-      '有一名关键人物的说法需要重点复核，他的表述存在直接指向答案的风险，已隐藏。请回到时间线和证据缺口继续追问。',
-    )
+  it('builds AI2 payload from only verified sources', () => {
+    const payload = buildAI2Payload({caseDefinition: demoCase, conversationHistory: [], revealedEvidenceIds: ['parcel-record'], discoveredEvidenceIds: ['tire-scratch']})
+    const json = JSON.stringify(payload)
+    expect(json).not.toContain('把快递藏到了修车铺旧轮胎后面')
+    expect(json).not.toContain('truthTimeline')
+    expect(json).not.toContain('privateFacts')
+    expect(json).not.toContain('verdict')
+    expect(payload.sources.map(s => s.id)).toEqual(['parcel-record'])
   })
 
   it('builds AI1 payload with quoted context without leaking full truth', () => {

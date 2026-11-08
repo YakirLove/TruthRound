@@ -1,7 +1,8 @@
 {
   "name": "truthround",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,18 +10,24 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "assets:optimize": "node scripts/optimize-assets.mjs",
+    "format": "prettier --write --no-semi --single-quote src server shared vite.config.ts"
   },
   "dependencies": {
+    "@drincs/pixi-vn": "1.9.9",
     "@tailwindcss/vite": "^4.3.0",
     "@tauri-apps/api": "^2.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "idb": "8.0.3",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.0",
+    "yaml": "2.8.1",
+    "zod": "4.1.12",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
@@ -35,11 +42,17 @@
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "fake-indexeddb": "6.2.4",
     "globals": "^17.6.0",
     "jsdom": "^27.0.1",
+    "prettier": "3.6.2",
+    "sharp": "0.34.4",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
     "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

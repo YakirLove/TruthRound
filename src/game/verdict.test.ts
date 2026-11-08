@@ -40,10 +40,10 @@ describe('verdict role assignment', () => {
     expect(isVerdictComplete(roles)).toBe(false)
   })
 
-  it('allows a partial verdict without accomplices or innocent assignments', () => {
+  it('rejects a partial verdict until all participants are assigned', () => {
     const roles = assignVerdictRole(createInitialVerdictRoles(demoCase.characters), 'lin', 'culprit')
 
-    expect(isVerdictComplete(roles)).toBe(true)
+    expect(isVerdictComplete(roles)).toBe(false)
     expect(buildPlayerVerdictFromRoles(roles)).toEqual({
       culpritIds: ['lin'],
       accompliceIds: [],

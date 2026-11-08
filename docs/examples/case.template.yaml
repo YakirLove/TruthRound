@@ -1,0 +1,98 @@
+# 作者示例，包含真相。复制到 case-packs 后修改并注册，才会出现在游戏中。
+# 复用仓库已有图片，便于先跑通。请按需要更换有权使用的素材。
+schemaVersion: 1
+version: 1.0.0
+id: courtyard-umbrella
+title: 小院里不见的雨伞
+difficulty: 1
+summary: 小院借物纠纷 / 一把不见的雨伞
+tags: [生活纠纷, 入门示例]
+incidentSummary: 小院公共伞架上少了一把黑色长柄伞。失主记得午后把伞放回了架子，两名邻居当时在附近。
+reportText: 失主向老周说明雨伞的样式和存放时间，希望大家核对各自拿走的物品。
+reporter:
+  name: 刘婶
+  portrait: /src/assets/cases/missing-lantern-parcel/characters/liu.png
+  identity: 小院居民，雨伞失主。
+  concern: 伞上有家人写的名字，她希望把自己的伞找回来，别让邻里因此伤了和气。
+  statement: 我下午两点把黑色长柄伞放在公共伞架上，六点出门时就找不见了。
+involvedParties:
+  - characterId: umbrella-lin
+    relationship: 下午经过伞架的邻居。
+    summonsReason: 他傍晚带着一把伞回了家，需要核对是否拿错。
+  - characterId: umbrella-chen
+    relationship: 当时在门口收拾花盆的邻居。
+    summonsReason: 她可能看见伞架附近发生的事。
+sceneAssets:
+  storefront: /src/assets/cases/missing-lantern-parcel/scenes/storefront.png
+  roundtable: /src/assets/cases/missing-lantern-parcel/scenes/roundtable-office.png
+  evidenceBoard: /src/assets/cases/missing-lantern-parcel/scenes/evidence-board.png
+  verdictDesk: /src/assets/cases/missing-lantern-parcel/scenes/verdict-desk.png
+  verdictResult: /src/assets/cases/missing-lantern-parcel/scenes/verdict-result.png
+characters:
+  - id: umbrella-zhou
+    name: 老周
+    roleType: police
+    portrait: /src/assets/cases/missing-lantern-parcel/characters/zhou.png
+    avatar: /src/assets/cases/missing-lantern-parcel/characters/zhou.png
+    emotion: calm
+    personality: 稳重，听完各方说法再记录。
+    publicBackground: 负责核实本次借物纠纷的民警。
+    privateFacts: []
+    visibleFacts: [失主报称公共伞架少了一把伞。]
+    lieStrategy: 如实说明核实结果，不替侦探下结论。
+    speechStyle: 简短，平和。
+    openingStatement: 大家把下午的经过说清楚，先核对物品，再谈责任。
+  - id: umbrella-lin
+    name: 阿林
+    roleType: culprit
+    portrait: /src/assets/cases/missing-lantern-parcel/characters/lin.png
+    avatar: /src/assets/cases/missing-lantern-parcel/characters/lin.png
+    emotion: defensive
+    personality: 爱面子，发现自己有错时会先找理由。
+    publicBackground: 小院租户，傍晚曾经过伞架。
+    privateFacts:
+      - 他把刘婶的伞拿回了家，后来发现手柄姓名不属于自己。
+      - 他怕被责怪，没有主动归还，把伞放在自家门后。
+    visibleFacts: [傍晚下过雨。, 他有一把相似的黑伞。]
+    lieStrategy: 先说拿的是自己的伞；被问到姓名时声称没留意，需要回家核对。
+    speechStyle: 短句，有些急。
+    openingStatement: 我是拿了一把伞，可院子里黑伞那么多，你们怎么知道不是我的？
+  - id: umbrella-chen
+    name: 陈姨
+    roleType: witness
+    portrait: /src/assets/cases/missing-lantern-parcel/characters/chen.png
+    avatar: /src/assets/cases/missing-lantern-parcel/characters/chen.png
+    emotion: calm
+    personality: 热心，但会分清看到的事和自己的猜测。
+    publicBackground: 下午在公共伞架旁收拾花盆的邻居。
+    privateFacts: []
+    visibleFacts:
+      - 她看见阿林从架上拿走一把黑伞，没有看清手柄。
+      - 她没有碰过伞架。
+    lieStrategy: 如实描述，不把猜测说成亲眼所见。
+    speechStyle: 自然，解释具体。
+    openingStatement: 我看见阿林拿伞了，但没看清是哪一把。我自己的伞在家里。
+evidence:
+  - id: umbrella-description
+    title: 失主提供的雨伞特征
+    stage: initial
+    provider: police
+    content: 刘婶的雨伞为黑色长柄伞，手柄内侧写有刘家的姓名标记。
+  - id: umbrella-at-door
+    title: 门后的姓名伞
+    stage: unlockable
+    provider: ai2_or_police
+    vagueLabel: 尚待核对的物品
+    discoveryLabel: 阿林带回家的雨伞
+    triggerHint: 当玩家追问阿林把伞带到哪里，或提出核对手柄姓名、查看阿林家的伞时，可申请民警核实。
+    content: 经阿林同意，民警核对他门后的黑伞，手柄内侧姓名与刘婶描述一致；阿林家另一把黑伞没有这个标记。
+truthTimeline:
+  - 14点，刘婶将带有姓名标记的黑伞放回公共伞架。
+  - 傍晚下雨时，阿林拿走这把伞，带回自己家中。
+  - 阿林发现姓名不符后没有及时归还，而是将伞放到门后。
+  - 陈姨看到了拿伞动作，但没有看清具体手柄。
+verdict:
+  culpritId: umbrella-lin
+  accompliceIds: []
+  innocentIds: [umbrella-chen]
+  explanation: 伞柄姓名和实际存放位置相互印证，阿林拿错后隐瞒未还；陈姨只是目击者，没有拿走或包庇。

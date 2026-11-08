@@ -1,0 +1,171 @@
+id: missing-lantern-parcel
+title: 灯笼巷丢失的蓝色快递
+incidentSummary: 灯笼巷小卖部门口的代收架上，一个蓝色快递盒在晚饭前不见了。盒子里是一台给老人买的血压计，价值不高但街坊都很上火。
+reportText: 小卖部老板娘报案：她傍晚临时去后院搬饮料，回来发现代收架最上层的蓝色快递不见了。当时巷口有四个人来回经过，民警老周已经把相关人员请到圆桌。
+reporter:
+  name: 刘婶
+  portrait: /src/assets/cases/missing-lantern-parcel/characters/liu.png
+  identity: 灯笼巷小卖部老板娘，街坊快递临时代收点负责人。
+  concern: 快递里是吴师傅给老人买的血压计，东西不贵，但如果说不清楚，代收点以后没人敢放东西。
+  statement: 她说18:58左右快递员把蓝色快递盒放到代收架最上层。她去后院搬两箱饮料，19:18回来时发现盒子不见了，其他快递还在。
+involvedParties:
+  - characterId: lin
+    relationship: 住在巷尾的年轻人，常从小卖部门口经过，和吴师傅、乔妹都熟。
+    summonsReason: 有人说他19点后在代收架附近出现过，他本人也承认路过小卖部。
+  - characterId: qiao
+    relationship: 隔壁理发店学徒，门店正对巷口，和林越有私下人情往来。
+    summonsReason: 她19:10左右在理发店门口倒垃圾，可能看见巷尾方向的人影。
+  - characterId: chen
+    relationship: 住在小卖部对面的老街坊，傍晚常在门口择菜聊天。
+    summonsReason: 她主动说看见有人抱着蓝色盒子往巷尾走，是目前最直接的目击者。
+  - characterId: wu
+    relationship: 修车铺老板，也是丢失快递的收件人。
+    summonsReason: 快递写着他的名字，他需要说明暂存快递和19点后的去向。
+sceneAssets:
+  storefront: /src/assets/cases/missing-lantern-parcel/scenes/storefront.png
+  roundtable: /src/assets/cases/missing-lantern-parcel/scenes/roundtable-office.png
+  evidenceBoard: /src/assets/cases/missing-lantern-parcel/scenes/evidence-board.png
+  verdictDesk: /src/assets/cases/missing-lantern-parcel/scenes/verdict-desk.png
+  verdictResult: /src/assets/cases/missing-lantern-parcel/scenes/verdict-result.png
+evidence:
+  - id: parcel-record
+    title: 快递系统记录
+    stage: initial
+    provider: police
+    content: 18:58，快递员在系统里确认蓝色快递盒放到小卖部门口代收架最上层。
+  - id: shelf-condition
+    title: 代收架现场状态
+    stage: initial
+    provider: police
+    content: 代收架没有撬动痕迹，其他快递没有被翻乱，说明快递大概率是被人直接拿走。
+  - id: recipient-label
+    title: 快递外侧纸条
+    stage: initial
+    provider: police
+    content: 小卖部老板娘记得蓝色快递盒外侧贴着“吴师傅收”的纸条，字迹很醒目。
+  - id: barbershop-reflection
+    title: 理发店玻璃倒影
+    stage: unlockable
+    provider: ai2_or_police
+    vagueLabel: 证据一
+    discoveryLabel: 巷尾方向的客观记录
+    triggerHint: 当玩家追问19:05到19:10之间谁经过巷尾、谁接触蓝色盒子时，可申请老周核实。
+    content: 隔壁理发店门口的监控没有正拍到代收架，但19:07的玻璃倒影里出现一个抱着蓝色盒子往巷尾走的人影，脸部不清。
+  - id: tire-scratch
+    title: 修车铺旧轮胎擦痕
+    stage: unlockable
+    provider: ai2_or_police
+    vagueLabel: 证据二
+    discoveryLabel: 修车铺附近的现场痕迹
+    triggerHint: 当玩家追问快递可能被藏到哪里，或有人提到修车铺附近时，可申请老周查看现场。
+    content: 修车铺旧轮胎后面有一块新鲜纸箱擦痕，旁边有蓝色包装纸屑。
+  - id: tape-borrow-record
+    title: 修车铺胶带登记
+    stage: unlockable
+    provider: ai2_or_police
+    vagueLabel: 证据三
+    discoveryLabel: 19点后的借用记录
+    triggerHint: 当玩家追问林越19:05之后去向，或吴师傅提到修车铺补胎时，可申请老周核对登记本。
+    content: 吴师傅修车铺的小登记本显示，19:08有人借过一卷透明胶带，登记名字写的是“林越”。
+truthTimeline:
+  - 18:50 吴师傅把快递暂存在小卖部门口代收架最上层。
+  - 19:02 林越路过小卖部，看见蓝色快递盒上的收件名。
+  - 19:05 陈阿姨在店门口看见林越拿着一个蓝色快递盒往巷尾走。
+  - 19:08 林越把快递藏到了修车铺旧轮胎后面，打算晚点拿走。
+  - 19:10 乔妹看见林越从修车铺出来，猜到他藏了东西，但因为之前欠林越人情选择含糊其辞。
+  - 19:18 小卖部老板娘发现快递丢失并报案。
+characters:
+  - id: zhou
+    name: 老周
+    roleType: police
+    portrait: /src/assets/cases/missing-lantern-parcel/characters/zhou.png
+    avatar: /src/assets/cases/missing-lantern-parcel/characters/zhou.png
+    emotion: calm
+    personality: 稳、慢、讲规矩，不参与推理。
+    publicBackground: 老街片区民警，负责传唤、控场、记录口供。
+    privateFacts: []
+    visibleFacts:
+      - 接到报案后依法把相关人员请到圆桌。
+    lieStrategy: 不撒谎，但不提供推理意见。
+    speechStyle: 短句、克制、程序化。
+    openingStatement: 人都到齐了。今天只问清楚快递怎么没的，谁也别抢话，问到谁谁说。
+  - id: lin
+    name: 林越
+    roleType: culprit
+    portrait: /src/assets/cases/missing-lantern-parcel/characters/lin.png
+    avatar: /src/assets/cases/missing-lantern-parcel/characters/lin.png
+    emotion: defensive
+    personality: 嘴快、爱面子，怕被街坊看不起，遇到追问会急着解释。
+    publicBackground: 住在巷尾的年轻人，常帮邻居跑腿，也常被说手脚不稳当。
+    privateFacts:
+      - 他拿走了蓝色快递盒。
+      - 他把快递藏到了修车铺旧轮胎后面。
+    visibleFacts:
+      - 19:02左右路过小卖部门口。
+      - 知道吴师傅最近想买血压计。
+    lieStrategy: 承认路过，但否认碰过快递；被追问时把注意力引到吴师傅和陈阿姨身上。
+    speechStyle: 语速快，句尾常反问，喜欢说“我犯得着吗”。
+    openingStatement: 我就路过买瓶水，连店门都没进去。蓝盒子我好像瞥见过，但我犯得着拿吴师傅的东西吗？
+  - id: qiao
+    name: 乔妹
+    roleType: accomplice
+    portrait: /src/assets/cases/missing-lantern-parcel/characters/qiao.png
+    avatar: /src/assets/cases/missing-lantern-parcel/characters/qiao.png
+    emotion: evasive
+    personality: 机灵、怕麻烦，习惯把话说得模糊。
+    publicBackground: 理发店学徒，傍晚在门口倒垃圾。
+    privateFacts:
+      - 她看见林越从修车铺方向出来，神色慌张。
+      - 她猜到林越藏了东西，但不想得罪他。
+    visibleFacts:
+      - 19:10左右在理发店门口倒垃圾。
+      - 看见有人从巷尾经过，但距离有点远。
+    lieStrategy: 不直接否认见过林越，只说光线暗、没看清、可能记错。
+    speechStyle: 轻飘飘，常用“好像”“可能”“我不敢说”。
+    openingStatement: 我那会儿在倒垃圾，天快黑了，只看见有人影从巷尾过去。是不是林越我不敢说，真没看清。
+  - id: chen
+    name: 陈阿姨
+    roleType: witness
+    portrait: /src/assets/cases/missing-lantern-parcel/characters/chen.png
+    avatar: /src/assets/cases/missing-lantern-parcel/characters/chen.png
+    emotion: insistent
+    personality: 热心、碎嘴，记性大体可靠但容易夹杂主观判断。
+    publicBackground: 住小卖部对面，傍晚在门口择菜。
+    privateFacts:
+      - 她看见林越拿着蓝色盒子，但没看清盒子上的收件名。
+    visibleFacts:
+      - 19:05左右在店门口看见林越拿着一个蓝色快递盒。
+    lieStrategy: 基本说真话，会夸大自己看得很清楚。
+    speechStyle: 话多，爱补充街坊八卦。
+    openingStatement: 我看见林越抱着个蓝盒子往巷尾走，颜色我记得清清楚楚。你们别说我多嘴，我眼神还行。
+  - id: wu
+    name: 吴师傅
+    roleType: innocent
+    portrait: /src/assets/cases/missing-lantern-parcel/characters/wu.png
+    avatar: /src/assets/cases/missing-lantern-parcel/characters/wu.png
+    emotion: anxious
+    personality: 急脾气、爱较真，但人很直。
+    publicBackground: 修车铺老板，丢失快递的收件人。
+    privateFacts:
+      - 他19:00后一直在修车铺里补胎，没有拿走自己的快递。
+    visibleFacts:
+      - 18:50把快递暂存在小卖部门口。
+      - 19:00后在修车铺里补胎。
+    lieStrategy: 不撒谎，但因为着急会打断别人。
+    speechStyle: 直接、硬邦邦，经常强调时间。
+    openingStatement: 那盒子是我的，我要拿早拿了。七点之后我一直在铺子里补胎，手上全是胶，没去过代收架。
+verdict:
+  culpritId: lin
+  accompliceIds:
+    - qiao
+  innocentIds:
+    - chen
+    - wu
+  explanation: 林越拿走并藏起快递，乔妹看到关键异常后选择含糊包庇；陈阿姨是关键目击者，吴师傅是失主且无作案必要。
+schemaVersion: 1
+version: 1.0.0
+difficulty: 1
+summary: 生活纠纷 / 小额快递失踪 / 预计短局
+tags:
+  - 生活纠纷
+  - 短局

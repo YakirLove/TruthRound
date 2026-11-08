@@ -1,36 +1,130 @@
-@import "tailwindcss";
-
+@font-face {
+  font-family: LocalSong;
+  src: local('Songti SC'), local('STSong');
+  font-display: swap;
+}
 :root {
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --background: #f4f0e8;
-  --surface: #fffdf8;
-  --surface-muted: #f7f3ea;
-  --text-main: #3c352c;
-  --text-strong: #181410;
-  --text-muted: #746b60;
-  --border: #ded4c5;
-  --accent: #176b5b;
-  --accent-soft: #dcefe8;
-  --shadow: 0 18px 44px rgba(32, 25, 17, 0.08);
-  font-family: var(--font-sans);
-  color: var(--text-main);
-  background: var(--background);
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #352f27;
+  background: #24261f;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
-
 * {
   box-sizing: border-box;
 }
-
 body {
-  min-width: 320px;
-  min-height: 100vh;
   margin: 0;
+  min-width: 360px;
 }
-
-#root {
-  min-height: 100vh;
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+button {
+  border: 1px solid #cbbda6;
+  background: #f6efdf;
+  color: inherit;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 17px;
+  transition:
+    background 0.16s,
+    transform 0.16s;
+}
+button:hover:not(:disabled) {
+  background: #e6dcc6;
+}
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #a85036;
+  outline-offset: 3px;
+}
+button svg {
+  flex-shrink: 0;
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h1,
+h2,
+h3 {
+  font-family: LocalSong, 'Noto Serif CJK SC', serif;
+  font-weight: 600;
+}
+h1 {
+  font-size: clamp(28px, 3vw, 44px);
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+}
+h2 {
+  font-size: 25px;
+  line-height: 1.45;
+}
+h3 {
+  font-size: 19px;
+}
+p {
+  line-height: 1.75;
+}
+small {
+  font-size: 12px;
+}
+input[type='range'] {
+  accent-color: #9a4d37;
+  width: 100%;
+}
+input[type='checkbox'] {
+  accent-color: #9a4d37;
+  width: 18px;
+  height: 18px;
+}
+textarea {
+  resize: none;
+}
+input[type='password'] {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid #cdbfa7;
+  padding: 12px;
+  background: #fffaf0;
+}
+summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #7d5841;
+}
+blockquote {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-left: 2px solid #b6a184;
+  background: #e9e1d0;
+  font-size: 14px;
+  line-height: 1.65;
+}
+::selection {
+  background: #d9b195;
+  color: #2b261e;
 }
